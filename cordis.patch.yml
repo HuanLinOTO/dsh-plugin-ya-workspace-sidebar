@@ -1,0 +1,9 @@
+# Replace the official workspace browser. The official client package claims
+# both sidebar.workspaces and conversation.hero.workspace, so the replacement
+# provides both seats before taking over the browsing information architecture.
+- id: ui-workspace
+  disabled: true
+
+- insert:
+    - id: ya-workspace-sidebar
+      name: '@dsh-external/ya-workspace-sidebar'
