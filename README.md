@@ -1,5 +1,7 @@
 # ya-workspace-sidebar
 
+![cover](assets/cover.webp)
+
 DSH Web 工作区侧栏替代插件。顶部固定展示 5 条全局最近会话，下方使用 Workspace → Session 二级菜单和面包屑导航；搜索、添加工作区、重命名、删除、Fork、归档与拖拽排序继续使用 DSH 原生 Host 能力。
 
 ## 运行
