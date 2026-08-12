@@ -39,6 +39,8 @@ export declare const zh: {
     running: string;
     waiting: string;
     completed: string;
+    collapse: string;
+    expand: string;
 };
 export type YaWorkspaceKey = keyof typeof zh;
 export declare const en: {
@@ -81,5 +83,7 @@ export declare const en: {
     running: string;
     waiting: string;
     completed: string;
+    collapse: string;
+    expand: string;
 };
 export declare const NS = "ya-workspace-sidebar";

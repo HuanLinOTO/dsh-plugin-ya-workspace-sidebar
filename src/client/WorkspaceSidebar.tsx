@@ -265,6 +265,7 @@ export function WorkspaceSidebar(props: SidebarProps) {
 
   const [pickerOpen, setPickerOpen] = useState(false)
   const pickerAnchor = useRef<HTMLButtonElement>(null)
+  const [recentCollapsed, setRecentCollapsed] = useState(false)
   const [workspaceRename, setWorkspaceRename] = useState<WorkspaceRow | null>(null)
   const [sessionRename, setSessionRename] = useState<SessionRow | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
@@ -375,9 +376,27 @@ export function WorkspaceSidebar(props: SidebarProps) {
             </div>
           ) : (
             <>
-              <div className="ya-recent">
-                <div className="ya-block-label">{t('recent')}</div>
-                {recent.length === 0 ? <div className="ya-empty">{t('noSessions')}</div> : recent.map(row => sessionItem(row, true))}
+              <div className={`ya-recent${recentCollapsed ? ' ya-recent-collapsed' : ''}`}>
+                <div className="ya-block-label">
+                  <span>{t('recent')}</span>
+                  {recent.length > 0 && (
+                    <button
+                      type="button"
+                      className={`ya-block-label-toggle${recentCollapsed ? ' ya-collapsed' : ''}`}
+                      aria-label={recentCollapsed ? t('expand') : t('collapse')}
+                      aria-expanded={!recentCollapsed}
+                      onClick={(event) => { event.stopPropagation(); setRecentCollapsed(value => !value) }}
+                    >
+                      <IconChevronRightOutline14 />
+                    </button>
+                  )}
+                </div>
+                <div className="ya-recent-list-wrap">
+                  {recent.length === 0
+                    ? <div className="ya-empty">{t('noSessions')}</div>
+                    : <div className="ya-recent-list">{recent.map(row => sessionItem(row, true))}</div>
+                  }
+                </div>
               </div>
               <div className="ya-breadcrumb">
                 {selectedKey === null ? (

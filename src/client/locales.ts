@@ -39,6 +39,8 @@ export const zh = {
   running: '进行中',
   waiting: '等待交互',
   completed: '已完成',
+  collapse: '折叠',
+  expand: '展开',
 } satisfies Record<string, string>
 
 export type YaWorkspaceKey = keyof typeof zh
@@ -83,6 +85,8 @@ export const en = {
   running: 'Running',
   waiting: 'Waiting for interaction',
   completed: 'Completed',
+  collapse: 'Collapse',
+  expand: 'Expand',
 } satisfies Record<YaWorkspaceKey, string>
 
 export const NS = 'ya-workspace-sidebar'

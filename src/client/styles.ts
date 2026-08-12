@@ -13,7 +13,14 @@ body[data-ds-dark-theme] .ya-search { background:var(--dsw-static-neutral-bluish
 .ya-search-icon { flex:none; display:inline-flex; border:0; padding:0; color:inherit; background:transparent; }
 .ya-body { flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; margin-right:calc(-1 * var(--dsh-sidebar-inline-padding)); padding-right:var(--dsh-sidebar-inline-padding); }
 .ya-recent { flex:none; padding-bottom:8px; border-bottom:1px solid var(--dsw-alias-border-l2); }
-.ya-block-label { height:26px; display:flex; align-items:center; padding:0 8px; color:var(--dsw-alias-label-tertiary); font-size:12px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+.ya-recent-collapsed { padding-bottom:0; border-bottom-color:transparent; }
+.ya-recent-list-wrap { display:grid; grid-template-rows:1fr; transition:grid-template-rows 220ms ease-out; }
+.ya-recent-collapsed .ya-recent-list-wrap { grid-template-rows:0fr; }
+.ya-recent-list { display:flex; flex-direction:column; overflow:hidden; min-height:0; }
+.ya-block-label { height:26px; display:flex; align-items:center; gap:2px; padding:0 8px; color:var(--dsw-alias-label-tertiary); font-size:12px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+.ya-block-label-toggle { flex:none; width:20px; height:20px; margin-left:auto; border:0; border-radius:6px; padding:0; display:inline-flex; align-items:center; justify-content:center; background:transparent; color:var(--dsw-alias-label-tertiary); cursor:pointer; transition:transform 180ms ease-out; }
+.ya-block-label-toggle:hover { background:var(--dsw-alias-interactive-bg-hover); color:var(--dsw-alias-label-secondary); }
+.ya-block-label-toggle.ya-collapsed { transform:rotate(-90deg); }
 .ya-breadcrumb { flex:none; height:34px; display:flex; align-items:center; gap:2px; padding:0 6px; color:var(--dsw-alias-label-tertiary); font-size:13px; }
 .ya-crumb { border:0; padding:4px 3px; border-radius:6px; background:transparent; color:inherit; font:inherit; cursor:default; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 button.ya-crumb:hover { background:var(--dsw-alias-interactive-bg-hover); color:var(--dsw-alias-label-primary); cursor:pointer; }
