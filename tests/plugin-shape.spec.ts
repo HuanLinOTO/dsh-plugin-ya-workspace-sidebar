@@ -18,6 +18,6 @@ describe('plugin shape', () => {
     const patch = readFileSync(path, 'utf8')
     expect(patch).toContain('- id: ui-workspace')
     expect(patch).toContain('disabled: true')
-    expect(patch).toContain("name: '@dsh-external/ya-workspace-sidebar'")
+    expect(patch).toContain("name: '@huanlin/dsh-plugin-ya-workspace-sidebar'")
   })
 })

@@ -6,7 +6,7 @@ DSH Web 工作区侧栏替代插件。顶部固定展示 5 条全局最近会话
 
 ## 运行
 
-插件采用 bundle 形式，`cordis.patch.yml` 会禁用官方 `ui-workspace` 并插入 `@dsh-external/ya-workspace-sidebar`。本地开发安装：
+插件采用 bundle 形式，`cordis.patch.yml` 会禁用官方 `ui-workspace` 并插入 `@huanlin/dsh-plugin-ya-workspace-sidebar`。本地开发安装：
 
 ```powershell
 dsh plugin --profile web add "link:D:/Projects/deepseek-harness/ya-workspace-sidebar"

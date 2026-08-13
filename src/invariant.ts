@@ -1,7 +1,7 @@
 /** Package invariant companion for ya-workspace-sidebar. */
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
-const PACKAGE_NAME = '@dsh-external/ya-workspace-sidebar'
+const PACKAGE_NAME = '@huanlin/dsh-plugin-ya-workspace-sidebar'
 
 export const name = 'ya-workspace-sidebar-invariant'
 export const inject = ['invariants']

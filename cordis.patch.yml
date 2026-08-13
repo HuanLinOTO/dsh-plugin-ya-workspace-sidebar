@@ -6,4 +6,4 @@
 
 - insert:
     - id: ya-workspace-sidebar
-      name: '@dsh-external/ya-workspace-sidebar'
+      name: '@huanlin/dsh-plugin-ya-workspace-sidebar'

@@ -1,12 +1,12 @@
 /** Build the host, invariant, and DSH module-loader client artifacts. */
 import { defineConfig, type UserConfig } from 'tsdown'
 
-const ID = '@dsh-external/ya-workspace-sidebar'
+const ID = '@huanlin/dsh-plugin-ya-workspace-sidebar'
 
 const CLIENT_EXTERNALS = [
   'react',
   'react/jsx-runtime',
-  'cordis',
+  '@deepseek-ai/cordis',
   '@deepseek-ai/dsh-client-runtime',
   '@deepseek-ai/dsh-client-runtime/client',
   '@deepseek-ai/dsh-client-locale',
@@ -29,7 +29,7 @@ const host: UserConfig = {
   fixedExtension: false,
   dts: false,
   clean: true,
-  deps: { neverBundle: ['cordis', '@deepseek-ai/dsh-invariants'] },
+  deps: { neverBundle: ['@deepseek-ai/cordis', '@deepseek-ai/dsh-invariants'] },
 }
 
 const client: UserConfig = {
