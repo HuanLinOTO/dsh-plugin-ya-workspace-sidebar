@@ -1,3 +1,5 @@
+本项目已被dshfind.com收录
+
 # ya-workspace-sidebar
 
 ![cover](assets/cover.webp)
