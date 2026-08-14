@@ -2,15 +2,21 @@
 
 # ya-workspace-sidebar
 
+[![npm version](https://img.shields.io/npm/v/@huanlin/dsh-plugin-ya-workspace-sidebar)](https://www.npmjs.com/package/@huanlin/dsh-plugin-ya-workspace-sidebar)
+
 ![cover](assets/cover.webp)
 
 DSH Web 工作区侧栏替代插件。顶部固定展示 5 条全局最近会话，下方使用 Workspace → Session 二级菜单和面包屑导航；搜索、添加工作区、重命名、删除、Fork、归档与拖拽排序继续使用 DSH 原生 Host 能力。
 
 ## 运行
 
-插件采用 bundle 形式，`cordis.patch.yml` 会禁用官方 `ui-workspace` 并插入 `@huanlin/dsh-plugin-ya-workspace-sidebar`。本地开发安装：
+插件采用 bundle 形式，`cordis.patch.yml` 会禁用官方 `ui-workspace` 并插入 `@huanlin/dsh-plugin-ya-workspace-sidebar`。安装：
 
 ```powershell
+# 从 npm 安装（推荐）：
+dsh plugin --profile web add @huanlin/dsh-plugin-ya-workspace-sidebar
+
+# 本地开发（热更新）：
 dsh plugin --profile web add "link:D:/Projects/deepseek-harness/ya-workspace-sidebar"
 ```
 
