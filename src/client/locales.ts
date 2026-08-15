@@ -42,6 +42,10 @@ export const zh = {
   completed: '已完成',
   collapse: '折叠',
   expand: '展开',
+  today: '今天',
+  yesterday: '昨天',
+  date: '{m}月{d}日',
+  dateYear: '{y}年{m}月{d}日',
 } satisfies Record<string, string>
 
 export type YaWorkspaceKey = keyof typeof zh
@@ -89,6 +93,10 @@ export const en = {
   completed: 'Completed',
   collapse: 'Collapse',
   expand: 'Expand',
+  today: 'Today',
+  yesterday: 'Yesterday',
+  date: '{m}/{d}',
+  dateYear: '{m}/{d}/{y}',
 } satisfies Record<YaWorkspaceKey, string>
 
 export const NS = 'ya-workspace-sidebar'

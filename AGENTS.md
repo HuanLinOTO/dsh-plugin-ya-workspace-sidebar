@@ -5,5 +5,5 @@
 - Recent Sessions is global, newest-first, capped at five, and hidden during search.
 - Root navigation lists real workspaces plus virtual Ungrouped; level two lists only the selected workspace's sessions.
 - Manual breadcrumb back remains at root until the current session id changes.
-- Real workspace level preserves `workspace.sessionIds` order and drag-to-reorder.
+- Real workspace level groups sessions by local calendar date (newest date first, `updatedAt` descending within a group); drag-to-reorder is disabled.
 - Build artifacts in `lib/` are prebuilt and must remain publishable.

@@ -21,6 +21,7 @@ body[data-ds-dark-theme] .ya-search { background:var(--dsw-static-neutral-bluish
 .ya-block-label-toggle { flex:none; width:20px; height:20px; margin-left:auto; border:0; border-radius:6px; padding:0; display:inline-flex; align-items:center; justify-content:center; background:transparent; color:var(--dsw-alias-label-tertiary); cursor:pointer; transition:transform 180ms ease-out; }
 .ya-block-label-toggle:hover { background:var(--dsw-alias-interactive-bg-hover); color:var(--dsw-alias-label-secondary); }
 .ya-block-label-toggle.ya-collapsed { transform:rotate(-90deg); }
+.ya-date-group-label { height:26px; display:flex; align-items:center; padding:0 8px; color:var(--dsw-alias-label-tertiary); font-size:12px; font-weight:600; letter-spacing:.02em; }
 .ya-breadcrumb { flex:none; height:34px; display:flex; align-items:center; gap:2px; padding:0 6px; color:var(--dsw-alias-label-tertiary); font-size:13px; }
 .ya-crumb { border:0; padding:4px 3px; border-radius:6px; background:transparent; color:inherit; font:inherit; cursor:default; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 button.ya-crumb:hover { background:var(--dsw-alias-interactive-bg-hover); color:var(--dsw-alias-label-primary); cursor:pointer; }
@@ -43,8 +44,6 @@ button.ya-crumb:hover { background:var(--dsw-alias-interactive-bg-hover); color:
 .ya-warning { color:var(--dsw-alias-status-warning); }
 .ya-rename-input { width:100%; height:38px; box-sizing:border-box; border:1px solid var(--dsw-alias-border-l2); border-radius:9px; padding:0 11px; background:transparent; color:var(--dsw-alias-label-primary); outline:none; }
 .ya-error { margin-top:8px; color:var(--dsw-alias-status-error); font-size:12px; }
-.ya-drop-before::before, .ya-drop-after::after { content:''; position:absolute; left:8px; right:8px; height:2px; border-radius:2px; background:var(--dsw-alias-label-link); }
-.ya-drop-before::before { top:-2px; } .ya-drop-after::after { bottom:-2px; }
 .ya-rail .ya-section-header { padding-left:0; margin-bottom:12px; }
 .ya-rail .ya-icon-button, .ya-rail .ya-search { width:36px; height:36px; padding:0; margin:0 0 12px; border-color:transparent; background:transparent; }
 .ya-rail .ya-search { justify-content:center; }

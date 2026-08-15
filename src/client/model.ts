@@ -21,6 +21,15 @@ export interface SessionRow {
   workspaceTitle: string
 }
 
+/** One date-bucketed group of session rows for the real-workspace level. */
+export interface SessionDateGroup {
+  /** Local calendar date `YYYY-MM-DD`, stable key. */
+  dateKey: string
+  /** Days between today's local date and this group's local date (0=today, 1=yesterday, …). */
+  dayOffset: number
+  rows: SessionRow[]
+}
+
 /** One first-level workspace row. */
 export interface WorkspaceRow {
   key: WorkspaceId | typeof UNGROUPED
@@ -150,6 +159,76 @@ export function deriveWorkspaceSessions(
     .map(id => list.byId[id])
     .filter((summary): summary is SessionSummary => summary !== undefined && visible(summary, list.current, archived))
     .map(summary => rowOf(summary, workspace.workspaceId, workspace.title))
+}
+
+/** Format a local calendar date as `YYYY-MM-DD` (locale-agnostic, no padding surprises). */
+function localDateKey(year: number, month: number, day: number): string {
+  const mm = month < 9 ? `0${month + 1}` : `${month + 1}`
+  const dd = day < 10 ? `0${day}` : `${day}`
+  return `${year}-${mm}-${dd}`
+}
+
+/** Whole-day difference between two local calendar dates (a - b) using UTC midnight. */
+function dayDiff(a: { year: number; month: number; day: number }, b: { year: number; month: number; day: number }): number {
+  const msA = Date.UTC(a.year, a.month, a.day)
+  const msB = Date.UTC(b.year, b.month, b.day)
+  return Math.round((msA - msB) / 86_400_000)
+}
+
+/**
+ * Derive the selected real workspace's sessions grouped by local calendar date.
+ *
+ * - Only real workspaces: `Ungrouped` falls back to {@link deriveWorkspaceSessions}.
+ * - Groups are ordered by date descending; rows within a group by `updatedAt` descending.
+ * - {@link visible} filter is reused (archived / subagent / blank visibility).
+ * - Future timestamps clamp to today's bucket (`dayOffset` 0).
+ * - `now` is the reference timestamp for "today"; pass `Date.now()` in production.
+ */
+export function deriveWorkspaceSessionGroups(
+  key: WorkspaceId | typeof UNGROUPED,
+  list: SessionListState,
+  workspaces: readonly WorkspaceView[],
+  archivedSessionIds: readonly SessionId[],
+  now: number,
+): SessionDateGroup[] {
+  if (key === UNGROUPED) return []
+  const workspace = workspaces.find(item => item.workspaceId === key)
+  if (workspace === undefined) return []
+  const archived = new Set(archivedSessionIds)
+  const rows = workspace.sessionIds
+    .map(id => list.byId[id])
+    .filter((summary): summary is SessionSummary => summary !== undefined && visible(summary, list.current, archived))
+    .map(summary => rowOf(summary, workspace.workspaceId, workspace.title))
+  if (rows.length === 0) return []
+
+  const nowDate = new Date(now)
+  const today = { year: nowDate.getFullYear(), month: nowDate.getMonth(), day: nowDate.getDate() }
+
+  const buckets = new Map<string, { dayOffset: number; rows: SessionRow[] }>()
+  for (const row of rows) {
+    const ts = Math.min(row.updatedAt, now)
+    const d = new Date(ts)
+    const date = { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() }
+    const dateKey = localDateKey(date.year, date.month, date.day)
+    let bucket = buckets.get(dateKey)
+    if (bucket === undefined) {
+      // dayOffset = today - date (positive for past dates). Future timestamps were
+      // clamped to `now` above, so `date` never exceeds today; Math.max guards rounding noise.
+      const offset = Math.max(0, dayDiff(today, date))
+      bucket = { dayOffset: offset, rows: [] }
+      buckets.set(dateKey, bucket)
+    }
+    bucket.rows.push(row)
+  }
+
+  const groups: SessionDateGroup[] = []
+  for (const [dateKey, bucket] of buckets) {
+    bucket.rows.sort((a, b) => b.updatedAt - a.updatedAt || String(a.id).localeCompare(String(b.id)))
+    groups.push({ dateKey, dayOffset: bucket.dayOffset, rows: bucket.rows })
+  }
+  // Sort groups by date descending: newest date first = smallest dayOffset first.
+  groups.sort((a, b) => a.dayOffset - b.dayOffset || a.dateKey.localeCompare(b.dateKey))
+  return groups
 }
 
 /** Case-insensitive local title/workspace matching used beside Host content search. */

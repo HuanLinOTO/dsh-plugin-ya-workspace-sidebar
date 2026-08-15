@@ -3,8 +3,8 @@ import type {
   SessionId, SessionListState, SessionSummary, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  deriveRecent, deriveWorkspaceSessions, deriveWorkspaces, localMatches,
-  UNGROUPED, workspaceKeyForSession,
+  deriveRecent, deriveWorkspaceSessionGroups, deriveWorkspaceSessions, deriveWorkspaces,
+  localMatches, UNGROUPED, workspaceKeyForSession,
 } from '../src/client/model.ts'
 
 const sid = (value: string) => value as SessionId
@@ -111,5 +111,143 @@ describe('sidebar projections', () => {
     expect(warmRow?.title).toBe('Fix the parser bug')
     expect(blankRow?.hasTitle).toBe(false) // blank sessions never carry a title
     expect(blankRow?.title).toBe('New Session')
+  })
+})
+
+describe('deriveWorkspaceSessionGroups', () => {
+  // Anchor "today" at local noon to dodge DST/midnight edge cases.
+  const today = new Date()
+  today.setHours(12, 0, 0, 0)
+  const now = today.getTime()
+  const noonOn = (dayOffset: number): number =>
+    new Date(today.getFullYear(), today.getMonth(), today.getDate() - dayOffset, 12, 0, 0, 0).getTime()
+  const yesterday = noonOn(1)
+  const twoDaysAgo = noonOn(2)
+
+  const groupedWorkspaces: WorkspaceView[] = [
+    {
+      workspaceId: wid('alpha'),
+      title: 'Alpha',
+      path: 'C:/alpha',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      sessionIds: [sid('a-today-early'), sid('a-today-late'), sid('a-yesterday'), sid('a-old')],
+    },
+    {
+      workspaceId: wid('beta'),
+      title: 'Beta',
+      path: 'C:/beta',
+      createdAt: '2026-08-02T00:00:00.000Z',
+      sessionIds: [sid('b-one')],
+    },
+  ]
+
+  it('groups by local calendar date with newest date first', () => {
+    const rows = [
+      session('a-old', twoDaysAgo + 1000),
+      session('a-today-late', now - 1000),
+      session('a-yesterday', yesterday + 1000),
+      session('a-today-early', now - 10_000),
+    ]
+    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), groupedWorkspaces, [], now)
+    expect(groups.map(g => g.dayOffset)).toEqual([0, 1, 2])
+    expect(groups[0].rows.map(r => r.id)).toEqual([sid('a-today-late'), sid('a-today-early')])
+    expect(groups[1].rows.map(r => r.id)).toEqual([sid('a-yesterday')])
+    expect(groups[2].rows.map(r => r.id)).toEqual([sid('a-old')])
+  })
+
+  it('sorts rows within a group by updatedAt descending with id tiebreak', () => {
+    // All three land in today's bucket; verify intra-group ordering.
+    const rows = [
+      session('a-today-early', now - 10_000),
+      session('a-today-late', now - 1000),
+      session('a-today-mid', now - 5000),
+    ]
+    const workspacesToday: WorkspaceView[] = [{
+      workspaceId: wid('alpha'),
+      title: 'Alpha',
+      sessionIds: [sid('a-today-early'), sid('a-today-late'), sid('a-today-mid')],
+    }]
+    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), workspacesToday, [], now)
+    expect(groups).toHaveLength(1)
+    expect(groups[0].rows.map(r => r.id)).toEqual([sid('a-today-late'), sid('a-today-mid'), sid('a-today-early')])
+  })
+
+  it('preserves visibility filters (archived / subagent / blank)', () => {
+    const rows = [
+      session('a-today-late', now - 1000),
+      session('a-today-early', now - 10_000, { origin: 'subagent' }),
+      session('a-yesterday', yesterday + 1000, { blank: true }),
+      session('a-old', twoDaysAgo + 1000),
+    ]
+    const state = list(rows, sid('a-yesterday'))
+    const groups = deriveWorkspaceSessionGroups(wid('alpha'), state, groupedWorkspaces, [sid('a-old')], now)
+    const ids = groups.flatMap(g => g.rows.map(r => r.id))
+    // subagent filtered, archived filtered, blank visible only because it's current.
+    // Today's bucket comes before yesterday's bucket.
+    expect(ids).toEqual([sid('a-today-late'), sid('a-yesterday')])
+  })
+
+  it('computes dayOffset for today / yesterday / earlier buckets', () => {
+    const rows = [
+      session('a-today-late', now - 1000),
+      session('a-yesterday', yesterday + 1000),
+      session('a-old', twoDaysAgo + 1000),
+    ]
+    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), groupedWorkspaces, [], now)
+    const byId = Object.fromEntries(groups.map(g => [g.dayOffset, g.dateKey]))
+    expect(byId[0]).toBeDefined()
+    expect(byId[1]).toBeDefined()
+    expect(byId[2]).toBeDefined()
+    // dateKey follows YYYY-MM-DD; dayOffset 0 must equal today's local date.
+    const todayKey = (() => {
+      const d = new Date(now)
+      const mm = d.getMonth() < 9 ? `0${d.getMonth() + 1}` : `${d.getMonth() + 1}`
+      const dd = d.getDate() < 10 ? `0${d.getDate()}` : `${d.getDate()}`
+      return `${d.getFullYear()}-${mm}-${dd}`
+    })()
+    expect(byId[0]).toBe(todayKey)
+  })
+
+  it('clamps future timestamps to today', () => {
+    const rows = [
+      session('a-future', now + 86_400_000), // 1 day in the future
+      session('a-today-late', now - 1000),
+    ]
+    // Replace a-old in the workspace with a-future so it's actually visible.
+    const workspacesWithFuture: WorkspaceView[] = [{
+      workspaceId: wid('alpha'),
+      title: 'Alpha',
+      sessionIds: [sid('a-future'), sid('a-today-late')],
+    }]
+    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), workspacesWithFuture, [], now)
+    expect(groups).toHaveLength(1)
+    expect(groups[0].dayOffset).toBe(0)
+    expect(groups[0].rows.map(r => r.id)).toEqual([sid('a-future'), sid('a-today-late')])
+  })
+
+  it('returns empty array for Ungrouped key (caller falls back to flat logic)', () => {
+    const rows = [session('stray', now - 1000)]
+    expect(deriveWorkspaceSessionGroups(UNGROUPED, list(rows), groupedWorkspaces, [], now)).toEqual([])
+  })
+
+  it('returns empty array for unknown workspace id', () => {
+    const rows = [session('a-today-late', now - 1000)]
+    expect(deriveWorkspaceSessionGroups(wid('missing'), list(rows), groupedWorkspaces, [], now)).toEqual([])
+  })
+
+  it('returns empty array when the workspace has no visible sessions', () => {
+    const rows = [session('a-today-late', now - 1000)]
+    expect(deriveWorkspaceSessionGroups(wid('alpha'), list(rows), groupedWorkspaces, [sid('a-today-late')], now)).toEqual([])
+  })
+
+  it('Ungrouped still uses deriveWorkspaceSessions for its flat recency list', () => {
+    // Sanity check: the parallel code path for Ungrouped is unchanged.
+    const rows = [
+      session('stray-old', now - 86_400_000),
+      session('stray-new', now - 1000),
+    ]
+    const state = list(rows)
+    expect(deriveWorkspaceSessions(UNGROUPED, state, groupedWorkspaces, []).map(r => r.id))
+      .toEqual([sid('stray-new'), sid('stray-old')])
   })
 })

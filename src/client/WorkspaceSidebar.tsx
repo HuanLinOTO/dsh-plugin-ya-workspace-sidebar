@@ -9,8 +9,9 @@ import {
 import type { SessionId, WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SidebarProps } from './contract.ts'
 import {
-  deriveRecent, deriveWorkspaceSessions, deriveWorkspaces, localMatches,
-  UNGROUPED, workspaceKeyForSession, type SessionRow, type WorkspaceRow,
+  deriveRecent, deriveWorkspaceSessionGroups, deriveWorkspaceSessions, deriveWorkspaces,
+  localMatches, UNGROUPED, workspaceKeyForSession, type SessionDateGroup, type SessionRow,
+  type WorkspaceRow,
 } from './model.ts'
 import { WorkspacePickFlow } from './WorkspacePicker.tsx'
 
@@ -32,6 +33,19 @@ function relativeTime(updatedAt: number, now: number, t: SidebarProps['t']): str
   return t('years', { n: Math.floor(diff / (365 * 24 * 60 * minute)) })
 }
 
+/** Format a date group's localized title from its dayOffset and `YYYY-MM-DD` key. */
+function dateGroupLabel(group: SessionDateGroup, now: number, t: SidebarProps['t']): string {
+  if (group.dayOffset === 0) return t('today')
+  if (group.dayOffset === 1) return t('yesterday')
+  const parts = group.dateKey.split('-')
+  const year = Number(parts[0])
+  const month = Number(parts[1])
+  const day = Number(parts[2])
+  const nowDate = new Date(now)
+  if (year === nowDate.getFullYear()) return t('date', { m: month, d: day })
+  return t('dateYear', { y: year, m: month, d: day })
+}
+
 function SessionStatus({ row }: { row: SessionRow }) {
   if (row.pendingInteraction !== undefined) return <StateDot state="warning" />
   if (row.running) return <StateDot state="ongoing" />
@@ -49,44 +63,17 @@ interface SessionRowProps {
   archive: (id: SessionId) => void
   t: SidebarProps['t']
   context?: boolean
-  drag?: {
-    active: boolean
-    marker: 'before' | 'after' | null
-    start: () => void
-    hover: (half: 'before' | 'after') => void
-    drop: (half: 'before' | 'after') => void
-    end: () => void
-  }
 }
 
-function rowHalf(event: { clientY: number; currentTarget: HTMLElement }): 'before' | 'after' {
-  const rect = event.currentTarget.getBoundingClientRect()
-  return event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
-}
-
-function SessionItem({ row, current, now, open, rename, fork, archive, t, context, drag }: SessionRowProps) {
+function SessionItem({ row, current, now, open, rename, fork, archive, t, context }: SessionRowProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const title = row.blank ? t('newSession') : row.hasTitle ? row.title : t('untitled')
   return (
     <div
-      className={`ya-row${row.id === current ? ' ya-selected' : ''}${menuOpen ? ' ya-menu-open' : ''}${drag?.marker === 'before' ? ' ya-drop-before' : ''}${drag?.marker === 'after' ? ' ya-drop-after' : ''}`}
+      className={`ya-row${row.id === current ? ' ya-selected' : ''}${menuOpen ? ' ya-menu-open' : ''}`}
       role="treeitem"
       aria-selected={row.id === current}
-      draggable={drag !== undefined}
       onClick={() => { open(row.id) }}
-      onDragStart={drag === undefined ? undefined : (event) => { event.dataTransfer.effectAllowed = 'move'; drag.start() }}
-      onDragEnd={drag?.end}
-      onDragOver={drag === undefined ? undefined : (event) => {
-        if (!drag.active) return
-        event.preventDefault()
-        event.dataTransfer.dropEffect = 'move'
-        drag.hover(rowHalf(event))
-      }}
-      onDrop={drag === undefined ? undefined : (event) => {
-        if (!drag.active) return
-        event.preventDefault()
-        drag.drop(rowHalf(event))
-      }}
     >
       <span className="ya-status-slot"><SessionStatus row={row} /></span>
       <span className="ya-row-main">
@@ -192,7 +179,7 @@ export function WorkspaceSidebar(props: SidebarProps) {
   const {
     wide, expandSidebar, useSessions, useWorkspaces, startSession, open, searchSessions,
     searchResultLimit, renameSession, forkSession, renameWorkspace, deleteWorkspace,
-    archiveSession, insertSessionBefore, createWorkspace, useDirectoryFlow, renderSlot, t,
+    archiveSession, createWorkspace, useDirectoryFlow, renderSlot, t,
   } = props
   const sessions = useSessions(state => state)
   const workspaceState = useWorkspaces(state => state)
@@ -227,10 +214,18 @@ export function WorkspaceSidebar(props: SidebarProps) {
   const selectedWorkspace = selectedKey === null || selectedKey === UNGROUPED
     ? undefined
     : workspaces.find(workspace => workspace.workspaceId === selectedKey)
-  const levelRows = selectedKey === null
-    ? []
-    : deriveWorkspaceSessions(selectedKey, sessions, workspaces, archived)
   const now = Date.now()
+  // Real workspace level renders date-bucketed groups; Ungrouped keeps the flat recency view.
+  const levelGroups = useMemo(
+    () => selectedKey !== null && selectedKey !== UNGROUPED
+      ? deriveWorkspaceSessionGroups(selectedKey, sessions, workspaces, archived, now)
+      : [],
+    [archived, sessions, workspaces, selectedKey, now],
+  )
+  const levelRows = selectedKey === UNGROUPED
+    ? deriveWorkspaceSessions(UNGROUPED, sessions, workspaces, archived)
+    : []
+  const levelEmpty = selectedKey === UNGROUPED ? levelRows.length === 0 : levelGroups.every(g => g.rows.length === 0)
 
   const [query, setQuery] = useState('')
   const normalizedQuery = sanitized(query).trim()
@@ -272,7 +267,6 @@ export function WorkspaceSidebar(props: SidebarProps) {
   const [renameError, setRenameError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<WorkspaceRow | null>(null)
-  const [drag, setDrag] = useState<{ id: SessionId; over: { id: SessionId; half: 'before' | 'after' } | null } | null>(null)
 
   const beginWorkspaceRename = (row: WorkspaceRow) => { setWorkspaceRename(row); setRenameDraft(row.title); setRenameError(null) }
   const beginSessionRename = (row: SessionRow) => { setSessionRename(row); setRenameDraft(row.title); setRenameError(null) }
@@ -298,42 +292,20 @@ export function WorkspaceSidebar(props: SidebarProps) {
   const archive = (id: SessionId) => { archiveSession(id).catch(reason => { console.warn('session archive rejected:', reason) }) }
   const fork = (id: SessionId) => { forkSession(id) }
 
-  const sessionItem = (row: SessionRow, context = false, index?: number) => {
-    const draggable = selectedKey !== null && selectedKey !== UNGROUPED && index !== undefined
-    const marker = drag?.over?.id === row.id ? drag.over.half : null
-    return (
-      <SessionItem
-        key={row.id}
-        row={row}
-        current={sessions.current}
-        now={now}
-        open={open}
-        rename={beginSessionRename}
-        fork={fork}
-        archive={archive}
-        t={t}
-        context={context}
-        {...draggable && selectedKey !== null && selectedKey !== UNGROUPED ? {
-          drag: {
-            active: drag !== null,
-            marker,
-            start: () => { setDrag({ id: row.id, over: null }) },
-            hover: (half: 'before' | 'after') => { setDrag(value => value === null ? value : { ...value, over: { id: row.id, half } }) },
-            drop: (half: 'before' | 'after') => {
-              if (drag === null) return
-              const anchor = half === 'before' ? row.id : levelRows[(index ?? 0) + 1]?.id
-              const sourceIndex = levelRows.findIndex(item => item.id === drag.id)
-              const anchorIndex = anchor === undefined ? levelRows.length : levelRows.findIndex(item => item.id === anchor)
-              setDrag(null)
-              if (anchor === drag.id || sourceIndex === anchorIndex || sourceIndex + 1 === anchorIndex) return
-              insertSessionBefore(selectedKey, drag.id, anchor).catch(reason => { console.warn('session reorder rejected:', reason) })
-            },
-            end: () => { setDrag(null) },
-          },
-        } : {}}
-      />
-    )
-  }
+  const sessionItem = (row: SessionRow, context = false) => (
+    <SessionItem
+      key={row.id}
+      row={row}
+      current={sessions.current}
+      now={now}
+      open={open}
+      rename={beginSessionRename}
+      fork={fork}
+      archive={archive}
+      t={t}
+      context={context}
+    />
+  )
 
   return (
     <div data-ya-workspace-sidebar className={wide ? '' : 'ya-rail'}>
@@ -426,9 +398,16 @@ export function WorkspaceSidebar(props: SidebarProps) {
                         t={t}
                       />
                     ))
-                    : levelRows.map((row, index) => sessionItem(row, false, index))}
+                    : selectedKey === UNGROUPED
+                      ? levelRows.map(row => sessionItem(row, false))
+                      : levelGroups.flatMap(group => [
+                        <div key={`group-${group.dateKey}`} className="ya-date-group-label" role="separator">
+                          {dateGroupLabel(group, now, t)}
+                        </div>,
+                        ...group.rows.map(row => sessionItem(row, false)),
+                      ])}
                   {selectedKey === null && workspaceRows.length === 0 && <div className="ya-empty">{t('noWorkspaces')}</div>}
-                  {selectedKey !== null && levelRows.length === 0 && <div className="ya-empty">{t('noSessions')}</div>}
+                  {selectedKey !== null && levelEmpty && <div className="ya-empty">{t('noSessions')}</div>}
                 </div>
               </div>
             </>
