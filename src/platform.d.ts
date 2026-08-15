@@ -7,6 +7,8 @@ declare module '@deepseek-ai/dsh-client-runtime/client' {
   export interface SessionSearchResultItem { sessionId: SessionId; snippet: string }
   export interface SessionSummary {
     id: SessionId
+    /** Durable log-backed title; absent until the host projects one (cold sessions without a cached title row). */
+    title?: string
     displayTitle: string
     origin?: 'subagent'
     running: boolean

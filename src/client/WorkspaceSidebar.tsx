@@ -66,7 +66,7 @@ function rowHalf(event: { clientY: number; currentTarget: HTMLElement }): 'befor
 
 function SessionItem({ row, current, now, open, rename, fork, archive, t, context, drag }: SessionRowProps) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const title = row.blank ? t('newSession') : row.title
+  const title = row.blank ? t('newSession') : row.hasTitle ? row.title : t('untitled')
   return (
     <div
       className={`ya-row${row.id === current ? ' ya-selected' : ''}${menuOpen ? ' ya-menu-open' : ''}${drag?.marker === 'before' ? ' ya-drop-before' : ''}${drag?.marker === 'after' ? ' ya-drop-after' : ''}`}
