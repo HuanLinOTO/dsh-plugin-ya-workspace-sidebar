@@ -5,7 +5,6 @@ export declare const zh: {
     recent: string;
     ungrouped: string;
     newSession: string;
-    untitled: string;
     addWorkspace: string;
     addWorkspaceMenu: string;
     search: string;
@@ -24,6 +23,13 @@ export declare const zh: {
     deleteDescription: string;
     fork: string;
     archive: string;
+    archiveMode: string;
+    deleteMode: string;
+    deleteSession: string;
+    deleteSessionTitle: string;
+    deleteSessionConfirm: string;
+    toggleActionMode: string;
+    actionModeLabel: string;
     cancel: string;
     confirm: string;
     retry: string;
@@ -54,7 +60,6 @@ export declare const en: {
     recent: string;
     ungrouped: string;
     newSession: string;
-    untitled: string;
     addWorkspace: string;
     addWorkspaceMenu: string;
     search: string;
@@ -73,6 +78,13 @@ export declare const en: {
     deleteDescription: string;
     fork: string;
     archive: string;
+    archiveMode: string;
+    deleteMode: string;
+    deleteSession: string;
+    deleteSessionTitle: string;
+    deleteSessionConfirm: string;
+    toggleActionMode: string;
+    actionModeLabel: string;
     cancel: string;
     confirm: string;
     retry: string;

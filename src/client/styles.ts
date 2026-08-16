@@ -49,6 +49,8 @@ button.ya-crumb:hover { background:var(--dsw-alias-interactive-bg-hover); color:
 .ya-rail .ya-search { justify-content:center; }
 .ya-rail .ya-search-icon { cursor:pointer; color:var(--dsw-alias-label-primary); }
 .ya-picker-error { color:var(--dsw-alias-status-error); white-space:pre-wrap; }
+.ya-action-mode-toggle.ya-action-mode-delete { color:var(--dsw-alias-state-error-primary); }
+.ya-action-mode-toggle.ya-action-mode-delete:hover { background:var(--dsw-alias-interactive-bg-hover-danger); }
 @keyframes ya-slide-in-forward { from { opacity:0; transform:translateX(10px); } to { opacity:1; transform:translateX(0); } }
 @keyframes ya-slide-in-backward { from { opacity:0; transform:translateX(-10px); } to { opacity:1; transform:translateX(0); } }
 .ya-level-enter-forward { animation:ya-slide-in-forward 180ms ease-out; }

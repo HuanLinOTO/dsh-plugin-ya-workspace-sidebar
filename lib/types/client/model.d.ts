@@ -6,8 +6,6 @@ export declare const UNGROUPED: "__ya_ungrouped__";
 export interface SessionRow {
     id: SessionId;
     title: string;
-    /** Whether the session has a durable log-backed title (summary.title !== undefined). */
-    hasTitle: boolean;
     blank: boolean;
     running: boolean;
     pendingInteraction?: SessionSummary['pendingInteraction'];

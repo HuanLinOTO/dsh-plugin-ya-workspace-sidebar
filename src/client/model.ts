@@ -10,8 +10,6 @@ export const UNGROUPED = '__ya_ungrouped__' as const
 export interface SessionRow {
   id: SessionId
   title: string
-  /** Whether the session has a durable log-backed title (summary.title !== undefined). */
-  hasTitle: boolean
   blank: boolean
   running: boolean
   pendingInteraction?: SessionSummary['pendingInteraction']
@@ -54,7 +52,6 @@ function rowOf(
   return {
     id: summary.id,
     title: summary.blank ? 'New Session' : summary.displayTitle,
-    hasTitle: summary.title !== undefined,
     blank: summary.blank,
     running: summary.running,
     ...(summary.pendingInteraction === undefined ? {} : { pendingInteraction: summary.pendingInteraction }),

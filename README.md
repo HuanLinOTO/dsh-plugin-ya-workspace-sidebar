@@ -1,6 +1,6 @@
-[![dshfind](https://dshfind.com/api/badge/huanlinoto/dsh-plugin-ya-workspace-sidebar?lang=zh)](https://dshfind.com/zh/plugins/huanlinoto/dsh-plugin-ya-workspace-sidebar?ref=badge)
-
-> 📌 本插件已收录于 [dshfind](https://dshfind.com/zh) 插件超市，点击上方徽章直达主页。
+<p align="center">
+  <a href="https://dshfind.com/zh/plugins/huanlinoto/dsh-plugin-ya-workspace-sidebar"><img src="https://dshfind.com/api/card/huanlinoto/dsh-plugin-ya-workspace-sidebar?lang=zh" alt="dsh-plugin-ya-workspace-sidebar card"></a>
+</p>
 
 # ya-workspace-sidebar
 

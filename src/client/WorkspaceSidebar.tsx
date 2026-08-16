@@ -13,6 +13,8 @@ import {
   localMatches, UNGROUPED, workspaceKeyForSession, type SessionDateGroup, type SessionRow,
   type WorkspaceRow,
 } from './model.ts'
+import type { SessionActionMode } from './settings.ts'
+import { getActionMode, setActionMode, subscribeActionMode } from './settings.ts'
 import { WorkspacePickFlow } from './WorkspacePicker.tsx'
 
 const SEARCH_DEBOUNCE_MS = 250
@@ -63,11 +65,15 @@ interface SessionRowProps {
   archive: (id: SessionId) => void
   t: SidebarProps['t']
   context?: boolean
+  actionMode: SessionActionMode
 }
 
-function SessionItem({ row, current, now, open, rename, fork, archive, t, context }: SessionRowProps) {
+function SessionItem({ row, current, now, open, rename, fork, archive, t, context, actionMode }: SessionRowProps) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const title = row.blank ? t('newSession') : row.hasTitle ? row.title : t('untitled')
+  const title = row.blank ? t('newSession') : row.title
+  const isDelete = actionMode === 'delete'
+  const actionLabel = isDelete ? t('deleteSession') : t('archive')
+  const actionIcon = isDelete ? <IconTrashOutline16 /> : <IconArchiveOutline20 size={16} />
   return (
     <div
       className={`ya-row${row.id === current ? ' ya-selected' : ''}${menuOpen ? ' ya-menu-open' : ''}`}
@@ -91,7 +97,7 @@ function SessionItem({ row, current, now, open, rename, fork, archive, t, contex
             items={[
               { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
               { id: 'fork', label: t('fork'), icon: <IconBranchOutline16 /> },
-              { id: 'archive', label: t('archive'), icon: <IconArchiveOutline20 size={16} /> },
+              { id: 'archive', label: actionLabel, icon: actionIcon, danger: isDelete },
             ]}
             onSelect={(id) => {
               setMenuOpen(false)
@@ -267,6 +273,10 @@ export function WorkspaceSidebar(props: SidebarProps) {
   const [renameError, setRenameError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<WorkspaceRow | null>(null)
+  const [actionMode, setActionModeState] = useState<SessionActionMode>(() => getActionMode())
+  const [sessionDeleteTarget, setSessionDeleteTarget] = useState<SessionRow | null>(null)
+
+  useEffect(() => subscribeActionMode(() => setActionModeState(getActionMode())), [])
 
   const beginWorkspaceRename = (row: WorkspaceRow) => { setWorkspaceRename(row); setRenameDraft(row.title); setRenameError(null) }
   const beginSessionRename = (row: SessionRow) => { setSessionRename(row); setRenameDraft(row.title); setRenameError(null) }
@@ -289,7 +299,26 @@ export function WorkspaceSidebar(props: SidebarProps) {
       .catch((reason: unknown) => { setRenameError(reason instanceof Error ? reason.message : String(reason)) })
       .finally(() => { setBusy(false) })
   }
-  const archive = (id: SessionId) => { archiveSession(id).catch(reason => { console.warn('session archive rejected:', reason) }) }
+  const archive = (id: SessionId) => {
+    if (actionMode === 'delete') {
+      const row = allRows.find(candidate => candidate.id === id)
+        ?? levelRows.find(candidate => candidate.id === id)
+        ?? levelGroups.flatMap(g => g.rows).find(candidate => candidate.id === id)
+        ?? recent.find(candidate => candidate.id === id)
+      setSessionDeleteTarget(row ?? { id, title: '', blank: false, running: false, completed: false, updatedAt: 0, workspaceKey: UNGROUPED, workspaceTitle: '' })
+      setRenameError(null)
+      return
+    }
+    archiveSession(id).catch(reason => { console.warn('session archive rejected:', reason) })
+  }
+  const confirmSessionDelete = () => {
+    if (sessionDeleteTarget === null || busy) return
+    setBusy(true)
+    archiveSession(sessionDeleteTarget.id).then(() => { setSessionDeleteTarget(null) })
+      .catch((reason: unknown) => { setRenameError(reason instanceof Error ? reason.message : String(reason)) })
+      .finally(() => { setBusy(false) })
+  }
+  const toggleActionMode = () => { setActionMode(actionMode === 'archive' ? 'delete' : 'archive') }
   const fork = (id: SessionId) => { forkSession(id) }
 
   const sessionItem = (row: SessionRow, context = false) => (
@@ -304,6 +333,7 @@ export function WorkspaceSidebar(props: SidebarProps) {
       archive={archive}
       t={t}
       context={context}
+      actionMode={actionMode}
     />
   )
 
@@ -311,6 +341,16 @@ export function WorkspaceSidebar(props: SidebarProps) {
     <div data-ya-workspace-sidebar className={wide ? '' : 'ya-rail'}>
       <div className="ya-section-header">
         {wide && <span className="ya-section-title">{t('workspaces')}</span>}
+        <button
+          type="button"
+          className={`ya-icon-button ya-action-mode-toggle${actionMode === 'delete' ? ' ya-action-mode-delete' : ''}`}
+          aria-label={t('toggleActionMode')}
+          aria-pressed={actionMode === 'delete'}
+          title={actionMode === 'delete' ? t('deleteMode') : t('archiveMode')}
+          onClick={(event) => { event.stopPropagation(); toggleActionMode() }}
+        >
+          {actionMode === 'delete' ? <IconTrashOutline16 size={wide ? 16 : 18} /> : <IconArchiveOutline20 size={wide ? 16 : 18} />}
+        </button>
         {directoryFlowAvailable && (
           <button ref={pickerAnchor} type="button" className="ya-icon-button" aria-label={t('addWorkspace')} onClick={() => { setPickerOpen(value => !value) }}>
             <IconProjectAddOutline16 size={wide ? 16 : 18} />
@@ -441,6 +481,22 @@ export function WorkspaceSidebar(props: SidebarProps) {
           <>
             <Button variant="outline" disabled={busy} onClick={() => { setDeleteTarget(null) }}>{t('cancel')}</Button>
             <Button variant="outline" disabled={busy} onClick={confirmDelete}>{t('deleteWorkspace')}</Button>
+          </>
+        )}
+      >
+        {renameError !== null && <div className="ya-error" role="alert">{renameError}</div>}
+      </Modal>
+
+      <Modal
+        open={sessionDeleteTarget !== null}
+        onClose={() => { if (!busy) setSessionDeleteTarget(null) }}
+        closeLabel={t('cancel')}
+        title={t('deleteSessionTitle')}
+        description={t('deleteSessionConfirm')}
+        footer={(
+          <>
+            <Button variant="outline" disabled={busy} onClick={() => { setSessionDeleteTarget(null) }}>{t('cancel')}</Button>
+            <Button variant="outline" disabled={busy} onClick={confirmSessionDelete}>{t('deleteSession')}</Button>
           </>
         )}
       >
