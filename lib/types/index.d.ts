@@ -1,4 +1,3 @@
-/** Host half for the browser-only ya-workspace-sidebar plugin. */
+import type { Context } from 'cordis';
 export declare const name = "ya-workspace-sidebar";
-/** Install the browser-only plugin's empty host half. */
-export declare function apply(): void;
+export declare function apply(ctx: Context): void;
