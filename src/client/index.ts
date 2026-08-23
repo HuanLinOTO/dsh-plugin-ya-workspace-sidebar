@@ -5,6 +5,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PickerInjected, SidebarInjected } from './contract.ts'
+import { dicts } from './dictionaries.ts'
 import { en, NS, zh } from './locales.ts'
 import { installStyles } from './styles.ts'
 import { WorkspacePicker } from './WorkspacePicker.tsx'
@@ -16,6 +17,14 @@ export const inject = ['slots', 'sessions', 'workspaces', 'locale']
 /** Register the sidebar browser and conversation hero picker. */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ya-workspace-sidebar: dictionaries')
+  const betterLocale = (ctx as unknown as {
+    get(name: string): {
+      register(ns: string, dicts: Record<string, Record<string, string>>): () => void
+    } | undefined
+  }).get('betterLocale')
+  if (betterLocale) {
+    ctx.effect(() => betterLocale.register(NS, dicts), 'ya-workspace-sidebar: better-locale override dicts')
+  }
   ctx.effect(installStyles, 'ya-workspace-sidebar: styles')
 
   const flowSource = (
