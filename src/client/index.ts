@@ -17,14 +17,27 @@ export const inject = ['slots', 'sessions', 'workspaces', 'locale']
 /** Register the sidebar browser and conversation hero picker. */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ya-workspace-sidebar: dictionaries')
-  const betterLocale = (ctx as unknown as {
-    get(name: string): {
-      register(ns: string, dicts: Record<string, Record<string, string>>): () => void
-    } | undefined
-  }).get('betterLocale')
-  if (betterLocale) {
-    ctx.effect(() => betterLocale.register(NS, dicts), 'ya-workspace-sidebar: better-locale override dicts')
-  }
+  ctx.effect(() => {
+    let dispose: (() => void) | undefined
+    const sync = (): void => {
+      dispose?.()
+      dispose = undefined
+      const store = (ctx as unknown as {
+        get(name: string): {
+          register(ns: string, dicts: Record<string, Record<string, string>>): () => void
+        } | undefined
+      }).get('betterLocale')
+      if (store !== undefined) {
+        dispose = store.register(NS, dicts)
+      }
+    }
+    sync()
+    const unsubscribe = (ctx.locale as unknown as { subscribe(fn: () => void): () => void }).subscribe(sync)
+    return () => {
+      unsubscribe()
+      dispose?.()
+    }
+  }, 'ya-workspace-sidebar: better-locale override dicts')
   ctx.effect(installStyles, 'ya-workspace-sidebar: styles')
 
   const flowSource = (
