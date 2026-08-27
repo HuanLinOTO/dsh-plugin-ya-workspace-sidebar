@@ -12,7 +12,7 @@ DSH Web 工作区侧栏替代插件。顶部固定展示 5 条全局最近会话
 
 ## 运行
 
-插件采用 bundle 形式，`cordis.patch.yml` 会禁用官方 `ui-workspace` 并插入 `@huanlin/dsh-plugin-ya-workspace-sidebar`。安装：
+插件采用 bundle 形式，`cordis.patch.yml` 会禁用官方 `ui-workspace` 并插入 `@huanlin/dsh-plugin-ya-workspace-sidebar`。DSH v0.1.2-alpha.1 起，官方 `ui-sidebar` / `ui-conversation` / `ui-agent-preset` 及目录选择器组合包会注入 `ctx.uiWorkspace` 服务，本插件 client entry 通过 `src/client/navigation.ts` 自供该服务的替身（含复用/新建会话导航、current/recent 回退、归档清理与启动自动选择策略），否则这些条目会永久 pending 导致 WebUI 启动死锁。安装：
 
 ```powershell
 # 从 npm 安装（推荐）：
