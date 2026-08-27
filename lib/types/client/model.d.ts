@@ -14,20 +14,26 @@ export interface SessionRow {
     workspaceKey: WorkspaceId | typeof UNGROUPED;
     workspaceTitle: string;
 }
-/** One date-bucketed group of session rows for the real-workspace level. */
-export interface SessionDateGroup {
-    /** Local calendar date `YYYY-MM-DD`, stable key. */
+/** One date-bucketed group. Empty `dateKey` is the undated trailing bucket. */
+export interface DateGroup<T> {
+    /** Local calendar date `YYYY-MM-DD`, or `''` for rows with no timestamp. */
     dateKey: string;
     /** Days between today's local date and this group's local date (0=today, 1=yesterday, …). */
     dayOffset: number;
-    rows: SessionRow[];
+    rows: T[];
 }
+/** One date-bucketed group of session rows for the real-workspace level. */
+export type SessionDateGroup = DateGroup<SessionRow>;
+/** One date-bucketed group of first-level workspace rows. */
+export type WorkspaceDateGroup = DateGroup<WorkspaceRow>;
 /** One first-level workspace row. */
 export interface WorkspaceRow {
     key: WorkspaceId | typeof UNGROUPED;
     title: string;
     path?: string;
     createdAt?: string;
+    /** Newest visible session `updatedAt`; empty real workspaces fall back to `createdAt`. */
+    lastUsedAt?: number;
     count: number;
     real: boolean;
 }
@@ -35,7 +41,7 @@ export interface WorkspaceRow {
 export declare function workspaceKeyForSession(sessionId: SessionId | undefined, workspaces: readonly WorkspaceView[]): WorkspaceId | typeof UNGROUPED | null;
 /** Derive global recent sessions, newest first. */
 export declare function deriveRecent(list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[], limit?: number): SessionRow[];
-/** Derive first-level real workspaces plus the virtual Ungrouped row. */
+/** Derive first-level workspaces plus Ungrouped, newest session activity first. */
 export declare function deriveWorkspaces(list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[]): WorkspaceRow[];
 /** Derive the selected workspace's sessions in its canonical order. */
 export declare function deriveWorkspaceSessions(key: WorkspaceId | typeof UNGROUPED, list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[]): SessionRow[];
@@ -49,5 +55,7 @@ export declare function deriveWorkspaceSessions(key: WorkspaceId | typeof UNGROU
  * - `now` is the reference timestamp for "today"; pass `Date.now()` in production.
  */
 export declare function deriveWorkspaceSessionGroups(key: WorkspaceId | typeof UNGROUPED, list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[], now: number): SessionDateGroup[];
+/** Group root workspace rows by local calendar date of `lastUsedAt`; undated rows trail with empty `dateKey`. */
+export declare function deriveWorkspaceGroups(rows: readonly WorkspaceRow[], now: number): WorkspaceDateGroup[];
 /** Case-insensitive local title/workspace matching used beside Host content search. */
 export declare function localMatches(rows: readonly SessionRow[], query: string): SessionRow[];

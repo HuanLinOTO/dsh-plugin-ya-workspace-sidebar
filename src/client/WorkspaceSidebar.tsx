@@ -9,8 +9,8 @@ import {
 import type { SessionId, WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SidebarProps } from './contract.ts'
 import {
-  deriveRecent, deriveWorkspaceSessionGroups, deriveWorkspaceSessions, deriveWorkspaces,
-  localMatches, UNGROUPED, workspaceKeyForSession, type SessionDateGroup, type SessionRow,
+  deriveRecent, deriveWorkspaceGroups, deriveWorkspaceSessionGroups, deriveWorkspaceSessions,
+  deriveWorkspaces, localMatches, UNGROUPED, workspaceKeyForSession, type SessionRow,
   type WorkspaceRow,
 } from './model.ts'
 import type { SessionActionMode } from './settings.ts'
@@ -36,7 +36,7 @@ function relativeTime(updatedAt: number, now: number, t: SidebarProps['t']): str
 }
 
 /** Format a date group's localized title from its dayOffset and `YYYY-MM-DD` key. */
-function dateGroupLabel(group: SessionDateGroup, now: number, t: SidebarProps['t']): string {
+function dateGroupLabel(group: { dateKey: string; dayOffset: number }, now: number, t: SidebarProps['t']): string {
   if (group.dayOffset === 0) return t('today')
   if (group.dayOffset === 1) return t('yesterday')
   const parts = group.dateKey.split('-')
@@ -124,12 +124,13 @@ function SessionItem({ row, current, now, open, rename, fork, archive, t, contex
   )
 }
 
-function WorkspaceItem({ row, enter, create, rename, remove, t }: {
+function WorkspaceItem({ row, enter, create, rename, remove, now, t }: {
   row: WorkspaceRow
   enter: () => void
   create: () => void
   rename: () => void
   remove: () => void
+  now: number
   t: SidebarProps['t']
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -139,7 +140,9 @@ function WorkspaceItem({ row, enter, create, rename, remove, t }: {
       <span className="ya-row-main">
         <span className="ya-row-line">
           <span className="ya-row-title">{row.real ? row.title : t('ungrouped')}</span>
-          <span className="ya-row-meta">{t('count', { n: row.count })}</span>
+          {row.lastUsedAt !== undefined && (
+            <span className="ya-row-meta ya-row-time">{relativeTime(row.lastUsedAt, now, t)}</span>
+          )}
         </span>
         {row.path !== undefined && <span className="ya-workspace-path">{row.path}</span>}
       </span>
@@ -201,6 +204,11 @@ export function WorkspaceSidebar(props: SidebarProps) {
     () => deriveWorkspaces(sessions, workspaces, archived),
     [archived, sessions, workspaces],
   )
+  const now = Date.now()
+  const workspaceGroups = useMemo(
+    () => deriveWorkspaceGroups(workspaceRows, now),
+    [workspaceRows, now],
+  )
   const [selectedKey, setSelectedKey] = useState<WorkspaceId | typeof UNGROUPED | null>(null)
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward')
   const [hasMounted, setHasMounted] = useState(false)
@@ -220,7 +228,6 @@ export function WorkspaceSidebar(props: SidebarProps) {
   const selectedWorkspace = selectedKey === null || selectedKey === UNGROUPED
     ? undefined
     : workspaces.find(workspace => workspace.workspaceId === selectedKey)
-  const now = Date.now()
   // Real workspace level renders date-bucketed groups; Ungrouped keeps the flat recency view.
   const levelGroups = useMemo(
     () => selectedKey !== null && selectedKey !== UNGROUPED
@@ -427,17 +434,25 @@ export function WorkspaceSidebar(props: SidebarProps) {
               <div className="ya-scroll" role="tree" aria-label={selectedKey === null ? t('workspaces') : t('sessions')}>
                 <div key={selectedKey ?? 'root'} className={hasMounted ? `ya-level-enter-${direction}` : undefined}>
                   {selectedKey === null
-                    ? workspaceRows.map(row => (
-                      <WorkspaceItem
-                        key={row.key}
-                        row={row}
-                        enter={() => { setDirection('forward'); setSelectedKey(row.key) }}
-                        create={() => { if (row.key !== UNGROUPED) startSession(row.key) }}
-                        rename={() => { beginWorkspaceRename(row) }}
-                        remove={() => { setDeleteTarget(row); setRenameError(null) }}
-                        t={t}
-                      />
-                    ))
+                    ? workspaceGroups.flatMap(group => [
+                      ...(group.dateKey === ''
+                        ? []
+                        : [<div key={`ws-group-${group.dateKey}`} className="ya-date-group-label" role="separator">
+                          {dateGroupLabel(group, now, t)}
+                        </div>]),
+                      ...group.rows.map(row => (
+                        <WorkspaceItem
+                          key={row.key}
+                          row={row}
+                          enter={() => { setDirection('forward'); setSelectedKey(row.key) }}
+                          create={() => { if (row.key !== UNGROUPED) startSession(row.key) }}
+                          rename={() => { beginWorkspaceRename(row) }}
+                          remove={() => { setDeleteTarget(row); setRenameError(null) }}
+                          now={now}
+                          t={t}
+                        />
+                      )),
+                    ])
                     : selectedKey === UNGROUPED
                       ? levelRows.map(row => sessionItem(row, false))
                       : levelGroups.flatMap(group => [

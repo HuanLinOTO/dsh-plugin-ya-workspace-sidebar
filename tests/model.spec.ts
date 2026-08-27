@@ -3,8 +3,8 @@ import type {
   SessionId, SessionListState, SessionSummary, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  deriveRecent, deriveWorkspaceSessionGroups, deriveWorkspaceSessions, deriveWorkspaces,
-  localMatches, UNGROUPED, workspaceKeyForSession,
+  deriveRecent, deriveWorkspaceGroups, deriveWorkspaceSessionGroups, deriveWorkspaceSessions,
+  deriveWorkspaces, localMatches, UNGROUPED, workspaceKeyForSession,
 } from '../src/client/model.ts'
 
 const sid = (value: string) => value as SessionId
@@ -62,14 +62,59 @@ describe('sidebar projections', () => {
     expect(result.find(row => row.id === sid('stray'))?.workspaceKey).toBe(UNGROUPED)
   })
 
-  it('lists real workspaces followed by virtual Ungrouped', () => {
+  it('sorts workspaces and Ungrouped by newest visible session activity', () => {
     const rows = [session('a-old', 1), session('a-new', 2), session('b-one', 3), session('stray', 4)]
     const result = deriveWorkspaces(list(rows), workspaces, [sid('a-old')])
-    expect(result.map(row => [row.key, row.count, row.real])).toEqual([
-      [wid('alpha'), 1, true],
-      [wid('beta'), 1, true],
-      [UNGROUPED, 1, false],
+    expect(result.map(row => [row.key, row.count, row.real, row.lastUsedAt])).toEqual([
+      [UNGROUPED, 1, false, 4],
+      [wid('beta'), 1, true, 3],
+      [wid('alpha'), 1, true, 2],
     ])
+  })
+
+  it('falls empty real workspaces back to createdAt and sinks missing lastUsedAt', () => {
+    const empty: WorkspaceView[] = [
+      { workspaceId: wid('gamma'), title: 'Gamma', path: 'C:/gamma', createdAt: '2026-08-03T00:00:00.000Z', sessionIds: [] },
+      { workspaceId: wid('delta'), title: 'Delta', path: 'C:/delta', sessionIds: [] },
+    ]
+    const result = deriveWorkspaces(list([]), empty, [])
+    expect(result.map(row => row.key)).toEqual([wid('gamma'), UNGROUPED, wid('delta')])
+    expect(result[0].lastUsedAt).toBe(Date.parse('2026-08-03T00:00:00.000Z'))
+    expect(result[1].lastUsedAt).toBeUndefined()
+    expect(result[2].lastUsedAt).toBeUndefined()
+  })
+
+  it('groups root workspaces by local calendar date of lastUsedAt', () => {
+    const today = new Date()
+    today.setHours(12, 0, 0, 0)
+    const now = today.getTime()
+    const noonOn = (dayOffset: number): number =>
+      new Date(today.getFullYear(), today.getMonth(), today.getDate() - dayOffset, 12, 0, 0, 0).getTime()
+    const rows = [
+      session('a-old', noonOn(2)),
+      session('a-new', noonOn(2) + 1000),
+      session('b-one', now - 1000),
+      session('stray', noonOn(1) + 1000),
+    ]
+    const groups = deriveWorkspaceGroups(deriveWorkspaces(list(rows), workspaces, []), now)
+    expect(groups.map(g => g.dayOffset)).toEqual([0, 1, 2])
+    expect(groups[0].rows.map(r => r.key)).toEqual([wid('beta')])
+    expect(groups[1].rows.map(r => r.key)).toEqual([UNGROUPED])
+    expect(groups[2].rows.map(r => r.key)).toEqual([wid('alpha')])
+  })
+
+  it('trails undated workspace rows without a date header', () => {
+    const empty: WorkspaceView[] = [
+      { workspaceId: wid('gamma'), title: 'Gamma', path: 'C:/gamma', createdAt: '2026-08-03T00:00:00.000Z', sessionIds: [] },
+      { workspaceId: wid('delta'), title: 'Delta', path: 'C:/delta', sessionIds: [] },
+    ]
+    const now = Date.parse('2026-08-10T12:00:00.000Z')
+    const groups = deriveWorkspaceGroups(deriveWorkspaces(list([]), empty, []), now)
+    expect(groups).toHaveLength(2)
+    expect(groups[0].dateKey).not.toBe('')
+    expect(groups[0].rows.map(r => r.key)).toEqual([wid('gamma')])
+    expect(groups[1].dateKey).toBe('')
+    expect(groups[1].rows.map(r => r.key)).toEqual([UNGROUPED, wid('delta')])
   })
 
   it('keeps canonical workspace order and uses recency for Ungrouped', () => {

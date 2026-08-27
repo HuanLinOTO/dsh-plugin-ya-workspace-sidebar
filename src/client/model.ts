@@ -19,14 +19,20 @@ export interface SessionRow {
   workspaceTitle: string
 }
 
-/** One date-bucketed group of session rows for the real-workspace level. */
-export interface SessionDateGroup {
-  /** Local calendar date `YYYY-MM-DD`, stable key. */
+/** One date-bucketed group. Empty `dateKey` is the undated trailing bucket. */
+export interface DateGroup<T> {
+  /** Local calendar date `YYYY-MM-DD`, or `''` for rows with no timestamp. */
   dateKey: string
   /** Days between today's local date and this group's local date (0=today, 1=yesterday, …). */
   dayOffset: number
-  rows: SessionRow[]
+  rows: T[]
 }
+
+/** One date-bucketed group of session rows for the real-workspace level. */
+export type SessionDateGroup = DateGroup<SessionRow>
+
+/** One date-bucketed group of first-level workspace rows. */
+export type WorkspaceDateGroup = DateGroup<WorkspaceRow>
 
 /** One first-level workspace row. */
 export interface WorkspaceRow {
@@ -34,6 +40,8 @@ export interface WorkspaceRow {
   title: string
   path?: string
   createdAt?: string
+  /** Newest visible session `updatedAt`; empty real workspaces fall back to `createdAt`. */
+  lastUsedAt?: number
   count: number
   real: boolean
 }
@@ -99,7 +107,18 @@ export function deriveRecent(
     })
 }
 
-/** Derive first-level real workspaces plus the virtual Ungrouped row. */
+function lastUsedOf(timestamps: readonly number[], fallback?: string): number | undefined {
+  let newest: number | undefined
+  for (const ts of timestamps) {
+    if (newest === undefined || ts > newest) newest = ts
+  }
+  if (newest !== undefined) return newest
+  if (fallback === undefined) return undefined
+  const created = Date.parse(fallback)
+  return Number.isNaN(created) ? undefined : created
+}
+
+/** Derive first-level workspaces plus Ungrouped, newest session activity first. */
 export function deriveWorkspaces(
   list: SessionListState,
   workspaces: readonly WorkspaceView[],
@@ -109,26 +128,44 @@ export function deriveWorkspaces(
   const accounted = new Set<SessionId>()
   const result = workspaces.map((workspace): WorkspaceRow => {
     let count = 0
+    const timestamps: number[] = []
     for (const id of workspace.sessionIds) {
       accounted.add(id)
       const summary = list.byId[id]
-      if (summary !== undefined && visible(summary, list.current, archived)) count++
+      if (summary !== undefined && visible(summary, list.current, archived)) {
+        count++
+        timestamps.push(summary.updatedAt)
+      }
     }
+    const lastUsedAt = lastUsedOf(timestamps, workspace.createdAt)
     return {
       key: workspace.workspaceId,
       title: workspace.title,
       path: workspace.path,
       createdAt: workspace.createdAt,
+      ...(lastUsedAt === undefined ? {} : { lastUsedAt }),
       count,
       real: true,
     }
   })
   let ungrouped = 0
+  const ungroupedTimestamps: number[] = []
   for (const id of list.ids) {
     const summary = list.byId[id]
-    if (summary !== undefined && !accounted.has(id) && visible(summary, list.current, archived)) ungrouped++
+    if (summary !== undefined && !accounted.has(id) && visible(summary, list.current, archived)) {
+      ungrouped++
+      ungroupedTimestamps.push(summary.updatedAt)
+    }
   }
-  result.push({ key: UNGROUPED, title: 'Ungrouped', count: ungrouped, real: false })
+  const ungroupedLastUsed = lastUsedOf(ungroupedTimestamps)
+  result.push({
+    key: UNGROUPED,
+    title: 'Ungrouped',
+    count: ungrouped,
+    real: false,
+    ...(ungroupedLastUsed === undefined ? {} : { lastUsedAt: ungroupedLastUsed }),
+  })
+  result.sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || String(a.key).localeCompare(String(b.key)))
   return result
 }
 
@@ -172,6 +209,37 @@ function dayDiff(a: { year: number; month: number; day: number }, b: { year: num
   return Math.round((msA - msB) / 86_400_000)
 }
 
+function groupByLocalDate<T>(
+  rows: readonly T[],
+  timestampOf: (row: T) => number,
+  compare: (a: T, b: T) => number,
+  now: number,
+): DateGroup<T>[] {
+  if (rows.length === 0) return []
+  const nowDate = new Date(now)
+  const today = { year: nowDate.getFullYear(), month: nowDate.getMonth(), day: nowDate.getDate() }
+  const buckets = new Map<string, { dayOffset: number; rows: T[] }>()
+  for (const row of rows) {
+    const ts = Math.min(timestampOf(row), now)
+    const d = new Date(ts)
+    const date = { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() }
+    const dateKey = localDateKey(date.year, date.month, date.day)
+    let bucket = buckets.get(dateKey)
+    if (bucket === undefined) {
+      bucket = { dayOffset: Math.max(0, dayDiff(today, date)), rows: [] }
+      buckets.set(dateKey, bucket)
+    }
+    bucket.rows.push(row)
+  }
+  const groups: DateGroup<T>[] = []
+  for (const [dateKey, bucket] of buckets) {
+    bucket.rows.sort(compare)
+    groups.push({ dateKey, dayOffset: bucket.dayOffset, rows: bucket.rows })
+  }
+  groups.sort((a, b) => a.dayOffset - b.dayOffset || a.dateKey.localeCompare(b.dateKey))
+  return groups
+}
+
 /**
  * Derive the selected real workspace's sessions grouped by local calendar date.
  *
@@ -196,35 +264,29 @@ export function deriveWorkspaceSessionGroups(
     .map(id => list.byId[id])
     .filter((summary): summary is SessionSummary => summary !== undefined && visible(summary, list.current, archived))
     .map(summary => rowOf(summary, workspace.workspaceId, workspace.title))
-  if (rows.length === 0) return []
+  return groupByLocalDate(
+    rows,
+    row => row.updatedAt,
+    (a, b) => b.updatedAt - a.updatedAt || String(a.id).localeCompare(String(b.id)),
+    now,
+  )
+}
 
-  const nowDate = new Date(now)
-  const today = { year: nowDate.getFullYear(), month: nowDate.getMonth(), day: nowDate.getDate() }
-
-  const buckets = new Map<string, { dayOffset: number; rows: SessionRow[] }>()
+/** Group root workspace rows by local calendar date of `lastUsedAt`; undated rows trail with empty `dateKey`. */
+export function deriveWorkspaceGroups(rows: readonly WorkspaceRow[], now: number): WorkspaceDateGroup[] {
+  const dated: WorkspaceRow[] = []
+  const undated: WorkspaceRow[] = []
   for (const row of rows) {
-    const ts = Math.min(row.updatedAt, now)
-    const d = new Date(ts)
-    const date = { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() }
-    const dateKey = localDateKey(date.year, date.month, date.day)
-    let bucket = buckets.get(dateKey)
-    if (bucket === undefined) {
-      // dayOffset = today - date (positive for past dates). Future timestamps were
-      // clamped to `now` above, so `date` never exceeds today; Math.max guards rounding noise.
-      const offset = Math.max(0, dayDiff(today, date))
-      bucket = { dayOffset: offset, rows: [] }
-      buckets.set(dateKey, bucket)
-    }
-    bucket.rows.push(row)
+    if (row.lastUsedAt === undefined) undated.push(row)
+    else dated.push(row)
   }
-
-  const groups: SessionDateGroup[] = []
-  for (const [dateKey, bucket] of buckets) {
-    bucket.rows.sort((a, b) => b.updatedAt - a.updatedAt || String(a.id).localeCompare(String(b.id)))
-    groups.push({ dateKey, dayOffset: bucket.dayOffset, rows: bucket.rows })
-  }
-  // Sort groups by date descending: newest date first = smallest dayOffset first.
-  groups.sort((a, b) => a.dayOffset - b.dayOffset || a.dateKey.localeCompare(b.dateKey))
+  const groups = groupByLocalDate(
+    dated,
+    row => row.lastUsedAt ?? 0,
+    (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || String(a.key).localeCompare(String(b.key)),
+    now,
+  )
+  if (undated.length > 0) groups.push({ dateKey: '', dayOffset: Number.POSITIVE_INFINITY, rows: [...undated] })
   return groups
 }
 
