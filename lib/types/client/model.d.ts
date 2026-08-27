@@ -1,5 +1,15 @@
 /** Pure sidebar projections shared by the browser and unit tests. */
-import type { SessionId, SessionListState, SessionSummary, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-client-runtime/client';
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client';
+import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client';
+import type { SessionId } from '@deepseek-ai/dsh-session/types';
+/** Pending-interaction kinds surfaced as a row status dot. */
+export type PendingInteractionKind = 'approval' | 'plan-review' | 'question';
+/** Renderer-visible view of ui-session's pending-interaction snapshot entries. */
+export type PendingInteractionEntry = {
+    readonly kind: string;
+};
+/** Pending-interaction snapshot consumed by the derive functions. */
+export type PendingInteractionMap = ReadonlyMap<SessionId, PendingInteractionEntry>;
 /** Navigation key for sessions not accounted to a real workspace. */
 export declare const UNGROUPED: "__ya_ungrouped__";
 /** One sidebar session row. */
@@ -8,7 +18,7 @@ export interface SessionRow {
     title: string;
     blank: boolean;
     running: boolean;
-    pendingInteraction?: SessionSummary['pendingInteraction'];
+    pendingInteraction?: PendingInteractionKind;
     completed: boolean;
     updatedAt: number;
     workspaceKey: WorkspaceId | typeof UNGROUPED;
@@ -40,11 +50,11 @@ export interface WorkspaceRow {
 /** Resolve the first/second-level destination for one session. */
 export declare function workspaceKeyForSession(sessionId: SessionId | undefined, workspaces: readonly WorkspaceView[]): WorkspaceId | typeof UNGROUPED | null;
 /** Derive global recent sessions, newest first. */
-export declare function deriveRecent(list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[], limit?: number): SessionRow[];
+export declare function deriveRecent(list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[], pending: PendingInteractionMap, limit?: number): SessionRow[];
 /** Derive first-level workspaces plus Ungrouped, newest session activity first. */
 export declare function deriveWorkspaces(list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[]): WorkspaceRow[];
 /** Derive the selected workspace's sessions in its canonical order. */
-export declare function deriveWorkspaceSessions(key: WorkspaceId | typeof UNGROUPED, list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[]): SessionRow[];
+export declare function deriveWorkspaceSessions(key: WorkspaceId | typeof UNGROUPED, list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[], pending: PendingInteractionMap): SessionRow[];
 /**
  * Derive the selected real workspace's sessions grouped by local calendar date.
  *
@@ -54,7 +64,7 @@ export declare function deriveWorkspaceSessions(key: WorkspaceId | typeof UNGROU
  * - Future timestamps clamp to today's bucket (`dayOffset` 0).
  * - `now` is the reference timestamp for "today"; pass `Date.now()` in production.
  */
-export declare function deriveWorkspaceSessionGroups(key: WorkspaceId | typeof UNGROUPED, list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[], now: number): SessionDateGroup[];
+export declare function deriveWorkspaceSessionGroups(key: WorkspaceId | typeof UNGROUPED, list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[], pending: PendingInteractionMap, now: number): SessionDateGroup[];
 /** Group root workspace rows by local calendar date of `lastUsedAt`; undated rows trail with empty `dateKey`. */
 export declare function deriveWorkspaceGroups(rows: readonly WorkspaceRow[], now: number): WorkspaceDateGroup[];
 /** Case-insensitive local title/workspace matching used beside Host content search. */

@@ -1,6 +1,6 @@
 {
   "name": "@huanlin/dsh-plugin-ya-workspace-sidebar",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "publishConfig": {
     "access": "public"
   },
@@ -38,12 +38,15 @@
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-api-workspace-controller",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-slots",
-        "@deepseek-ai/dsh-client-ui-sidebar",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-ui-primitives"
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-slots"
       ],
       "platform": "web"
     }
@@ -55,27 +58,43 @@
     "bundle:client": "tsdown -c tsdown.config.ts"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-client-locale": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-client-runtime": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-client-ui-conversation": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-client-ui-sidebar": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-invariants": "^0.0.1-rc.1",
-    "cordis": "^4.0.0-rc.7",
+    "@deepseek-ai/cordis": "^0.1.2-alpha.1",
+    "@deepseek-ai/dsh-api-session-controller": "^0.1.2-alpha.1",
+    "@deepseek-ai/dsh-api-workspace-controller": "^0.1.2-alpha.1",
+    "@deepseek-ai/dsh-client-locale": "^0.1.2-alpha.1",
+    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.2-alpha.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.2-alpha.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.2-alpha.1",
+    "@deepseek-ai/dsh-client-ui-session": "^0.1.2-alpha.1",
+    "@deepseek-ai/dsh-client-ui-sidebar": "^0.1.2-alpha.1",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.2-alpha.1",
+    "@deepseek-ai/dsh-invariants": "^0.1.2-alpha.1",
+    "@deepseek-ai/dsh-session": "^0.1.2-alpha.1",
     "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
-    "@deepseek-ai/dsh-client-locale": {
+    "@deepseek-ai/cordis": {
       "optional": true
     },
-    "@deepseek-ai/dsh-client-runtime": {
+    "@deepseek-ai/dsh-api-session-controller": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-api-workspace-controller": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
       "optional": true
     },
     "@deepseek-ai/dsh-client-ui-conversation": {
       "optional": true
     },
     "@deepseek-ai/dsh-client-ui-primitives": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-renderer": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-session": {
       "optional": true
     },
     "@deepseek-ai/dsh-client-ui-sidebar": {
@@ -87,7 +106,7 @@
     "@deepseek-ai/dsh-invariants": {
       "optional": true
     },
-    "cordis": {
+    "@deepseek-ai/dsh-session": {
       "optional": true
     },
     "react": {
@@ -95,16 +114,20 @@
     }
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-client-locale": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-client-runtime": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-client-ui-conversation": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-client-ui-sidebar": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-invariants": "^0.0.1-rc.1",
+    "@deepseek-ai/cordis": "link:C:/Users/Administrator/.dsh/source/current/vendor/cordis",
+    "@deepseek-ai/dsh-api-session-controller": "link:C:/Users/Administrator/.dsh/source/current/packages/api/session-controller",
+    "@deepseek-ai/dsh-api-workspace-controller": "link:C:/Users/Administrator/.dsh/source/current/packages/api/workspace-controller",
+    "@deepseek-ai/dsh-client-locale": "link:C:/Users/Administrator/.dsh/source/current/packages/client/locale",
+    "@deepseek-ai/dsh-client-ui-conversation": "link:C:/Users/Administrator/.dsh/source/current/packages/client/ui-conversation",
+    "@deepseek-ai/dsh-client-ui-primitives": "link:C:/Users/Administrator/.dsh/source/current/packages/client/ui-primitives",
+    "@deepseek-ai/dsh-client-ui-renderer": "link:C:/Users/Administrator/.dsh/source/current/packages/client/ui-renderer",
+    "@deepseek-ai/dsh-client-ui-session": "link:C:/Users/Administrator/.dsh/source/current/packages/client/ui-session",
+    "@deepseek-ai/dsh-client-ui-sidebar": "link:C:/Users/Administrator/.dsh/source/current/packages/client/ui-sidebar",
+    "@deepseek-ai/dsh-client-ui-slots": "link:C:/Users/Administrator/.dsh/source/current/packages/client/ui-slots",
+    "@deepseek-ai/dsh-invariants": "link:C:/Users/Administrator/.dsh/source/current/packages/runtime-diagnostics/invariants",
+    "@deepseek-ai/dsh-session": "link:C:/Users/Administrator/.dsh/source/current/packages/core/session",
     "@types/node": "^22.20.1",
     "@types/react": "~18.3.31",
-    "cordis": "^4.0.0-rc.7",
     "lightningcss": "^1.33.0",
     "react": "^18.2.0",
     "tsdown": "^0.22.2",

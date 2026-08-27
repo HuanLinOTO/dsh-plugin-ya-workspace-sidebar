@@ -1,13 +1,13 @@
 /** Existing-workspace menu plus composed directory-adoption flow. */
 import type { ReactNode, RefObject } from 'react';
-import type { WorkspaceId, WorkspaceListState, WorkspaceView } from '@deepseek-ai/dsh-client-runtime/client';
+import type { WorkspaceId, WorkspaceSnapshot, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client';
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots';
 import type { DirectoryFlowOwnerProps, PickerProps } from './contract.ts';
 interface FlowProps {
     t: PickerProps['t'];
     open: boolean;
     anchorRef?: RefObject<HTMLElement | null>;
-    useWorkspaces: <S>(selector: (state: WorkspaceListState) => S) => S;
+    useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>;
     createWorkspace: (input: {
         path: string;
     }) => Promise<WorkspaceView>;

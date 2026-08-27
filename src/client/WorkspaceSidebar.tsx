@@ -6,12 +6,13 @@ import {
   IconPlusOutline16, IconProjectAddOutline16, IconSearchOutline16, IconTrashOutline16,
   Menu, Modal, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SessionId, WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SidebarProps } from './contract.ts'
 import {
   deriveRecent, deriveWorkspaceGroups, deriveWorkspaceSessionGroups, deriveWorkspaceSessions,
-  deriveWorkspaces, localMatches, UNGROUPED, workspaceKeyForSession, type SessionRow,
-  type WorkspaceRow,
+  deriveWorkspaces, localMatches, UNGROUPED, workspaceKeyForSession, type PendingInteractionMap,
+  type SessionRow, type WorkspaceRow,
 } from './model.ts'
 import type { SessionActionMode } from './settings.ts'
 import { getActionMode, setActionMode, subscribeActionMode } from './settings.ts'
@@ -186,18 +187,19 @@ interface RemoteState {
 /** Fill `sidebar.workspaces` with the replacement browser. */
 export function WorkspaceSidebar(props: SidebarProps) {
   const {
-    wide, expandSidebar, useSessions, useWorkspaces, startSession, open, searchSessions,
-    searchResultLimit, renameSession, forkSession, renameWorkspace, deleteWorkspace,
-    archiveSession, createWorkspace, useDirectoryFlow, renderSlot, t,
+    wide, expandSidebar, useSessions, useSessionPendingInteraction, useWorkspaces, startSession,
+    open, searchSessions, searchResultLimit, renameSession, forkSession, renameWorkspace,
+    deleteWorkspace, archiveSession, createWorkspace, useDirectoryFlow, renderSlot, t,
   } = props
   const sessions = useSessions(state => state)
   const workspaceState = useWorkspaces(state => state)
   const workspaces = workspaceState.items
   const archived = workspaceState.archivedSessionIds
+  const pendingInteractions: PendingInteractionMap = useSessionPendingInteraction(state => state)
   const directoryFlowAvailable = useDirectoryFlow(value => value)
   const allRows = useMemo(
-    () => deriveRecent(sessions, workspaces, archived, Number.MAX_SAFE_INTEGER),
-    [archived, sessions, workspaces],
+    () => deriveRecent(sessions, workspaces, archived, pendingInteractions, Number.MAX_SAFE_INTEGER),
+    [archived, pendingInteractions, sessions, workspaces],
   )
   const recent = allRows.slice(0, 5)
   const workspaceRows = useMemo(
@@ -231,12 +233,12 @@ export function WorkspaceSidebar(props: SidebarProps) {
   // Real workspace level renders date-bucketed groups; Ungrouped keeps the flat recency view.
   const levelGroups = useMemo(
     () => selectedKey !== null && selectedKey !== UNGROUPED
-      ? deriveWorkspaceSessionGroups(selectedKey, sessions, workspaces, archived, now)
+      ? deriveWorkspaceSessionGroups(selectedKey, sessions, workspaces, archived, pendingInteractions, now)
       : [],
-    [archived, sessions, workspaces, selectedKey, now],
+    [archived, pendingInteractions, sessions, workspaces, selectedKey, now],
   )
   const levelRows = selectedKey === UNGROUPED
-    ? deriveWorkspaceSessions(UNGROUPED, sessions, workspaces, archived)
+    ? deriveWorkspaceSessions(UNGROUPED, sessions, workspaces, archived, pendingInteractions)
     : []
   const levelEmpty = selectedKey === UNGROUPED ? levelRows.length === 0 : levelGroups.every(g => g.rows.length === 0)
 
