@@ -1,4 +1,4 @@
-/** Build the host, invariant, and DSH module-loader client artifacts. */
+/** Build the host and DSH module-loader client artifacts. */
 import { defineConfig, type UserConfig } from 'tsdown'
 
 const ID = '@huanlin/dsh-plugin-ya-workspace-sidebar'
@@ -28,7 +28,7 @@ const CLIENT_EXTERNALS = [
 
 const host: UserConfig = {
   name: ID,
-  entry: { index: 'src/index.ts', invariant: 'src/invariant.ts' },
+  entry: { index: 'src/index.ts' },
   outDir: 'lib',
   format: ['esm'],
   platform: 'node',
@@ -36,7 +36,7 @@ const host: UserConfig = {
   fixedExtension: false,
   dts: false,
   clean: true,
-  deps: { neverBundle: ['@deepseek-ai/cordis', '@deepseek-ai/dsh-invariants'] },
+  deps: { neverBundle: ['@deepseek-ai/cordis'] },
 }
 
 const client: UserConfig = {

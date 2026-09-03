@@ -1,6 +1,6 @@
 {
   "name": "@huanlin/dsh-plugin-ya-workspace-sidebar",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publishConfig": {
     "access": "public"
   },
@@ -16,10 +16,6 @@
     ".": {
       "types": "./lib/types/index.d.ts",
       "import": "./lib/index.js"
-    },
-    "./invariant": {
-      "types": "./lib/types/invariant.d.ts",
-      "import": "./lib/invariant.js"
     },
     "./client": {
       "types": "./lib/types/client/index.d.ts",
@@ -59,21 +55,20 @@
     "bundle:client": "tsdown -c tsdown.config.ts"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-api-remotes": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-api-session-controller": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-api-workspace-controller": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-client-locale": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-client-ui-session": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-client-ui-sidebar": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-client-ui-workspace": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-invariants": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-session": "^0.1.2-alpha.1",
-    "@deepseek-ai/dsh-typert-protocol": "^0.1.2-alpha.1",
+    "@deepseek-ai/cordis": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-api-remotes": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-api-session-controller": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-api-workspace-controller": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-session": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-sidebar": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-workspace": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-session": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.2-rc.1",
     "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
@@ -113,9 +108,6 @@
     "@deepseek-ai/dsh-client-ui-workspace": {
       "optional": true
     },
-    "@deepseek-ai/dsh-invariants": {
-      "optional": true
-    },
     "@deepseek-ai/dsh-session": {
       "optional": true
     },
@@ -139,7 +131,6 @@
     "@deepseek-ai/dsh-client-ui-sidebar": "link:C:/Users/Administrator/.dsh/source/current/packages/client/ui-sidebar",
     "@deepseek-ai/dsh-client-ui-slots": "link:C:/Users/Administrator/.dsh/source/current/packages/client/ui-slots",
     "@deepseek-ai/dsh-client-ui-workspace": "link:C:/Users/Administrator/.dsh/source/current/packages/client/ui-workspace",
-    "@deepseek-ai/dsh-invariants": "link:C:/Users/Administrator/.dsh/source/current/packages/runtime-diagnostics/invariants",
     "@deepseek-ai/dsh-session": "link:C:/Users/Administrator/.dsh/source/current/packages/core/session",
     "@deepseek-ai/dsh-typert-protocol": "link:C:/Users/Administrator/.dsh/source/current/packages/typert/protocol",
     "@types/node": "^22.20.1",

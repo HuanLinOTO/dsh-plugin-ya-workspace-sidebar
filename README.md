@@ -43,4 +43,6 @@ pnpm test
 pnpm run build
 ```
 
-构建后确认 `lib/index.js`、`lib/invariant.js`、`lib/client.js` 和 `lib/types/` 存在，并确认 `lib/client.js` 使用 `window.__ModuleLoader__.load()` 包装。
+构建后确认 `lib/index.js`、`lib/client.js` 和 `lib/types/` 存在，并确认 `lib/client.js` 使用 `window.__ModuleLoader__.load()` 包装。
+
+> 本包自 v0.1.2-rc.1 起不再发布 `./invariant` 导出：本插件贡献的均为 client-only slot 条目，无独立可分歧的观察，按新 invariant 规则省略其源码与接线。
