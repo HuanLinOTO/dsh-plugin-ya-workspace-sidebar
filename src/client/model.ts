@@ -128,6 +128,41 @@ export function deriveRecent(
     })
 }
 
+/** Fixed occupied height of one recent-sessions row: 33px two-line row + 2px vertical margins. */
+export const RECENT_ROW_STRIDE = 35
+
+/** Half-open render window `[start, end)` of a fixed-stride virtual list. */
+export interface VirtualWindow {
+  start: number
+  end: number
+}
+
+/**
+ * Windowing math for the recent-sessions virtual list (fixed row stride).
+ *
+ * Clamps `scrollTop` into the valid range, then pads the visible row range
+ * with `overscan` rows on both edges. Before the viewport has been measured
+ * (`viewportHeight <= 0`) it still returns a small head window so the first
+ * paint is never blank.
+ */
+export function virtualWindow(
+  scrollTop: number,
+  viewportHeight: number,
+  count: number,
+  stride: number = RECENT_ROW_STRIDE,
+  overscan = 4,
+): VirtualWindow {
+  if (count <= 0 || stride <= 0) return { start: 0, end: 0 }
+  const height = Math.max(0, viewportHeight)
+  const top = Math.min(Math.max(0, scrollTop), Math.max(0, count * stride - height))
+  const first = Math.floor(top / stride)
+  const last = height > 0 ? Math.floor((top + height) / stride) : first
+  return {
+    start: Math.max(0, first - overscan),
+    end: Math.min(count, last + 1 + overscan),
+  }
+}
+
 function lastUsedOf(timestamps: readonly number[], fallback?: string): number | undefined {
   let newest: number | undefined
   for (const ts of timestamps) {

@@ -48,6 +48,7 @@ export declare const zh: {
     completed: string;
     collapse: string;
     expand: string;
+    resizeRecent: string;
     today: string;
     yesterday: string;
     date: string;
@@ -103,6 +104,7 @@ export declare const en: {
     completed: string;
     collapse: string;
     expand: string;
+    resizeRecent: string;
     today: string;
     yesterday: string;
     date: string;

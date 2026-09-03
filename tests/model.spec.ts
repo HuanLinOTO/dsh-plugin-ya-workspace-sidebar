@@ -4,7 +4,7 @@ import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   deriveRecent, deriveWorkspaceGroups, deriveWorkspaceSessionGroups, deriveWorkspaceSessions,
-  deriveWorkspaces, localMatches, UNGROUPED, workspaceKeyForSession,
+  deriveWorkspaces, localMatches, RECENT_ROW_STRIDE, UNGROUPED, virtualWindow, workspaceKeyForSession,
 } from '../src/client/model.ts'
 
 const sid = (value: string) => value as SessionId
@@ -158,6 +158,39 @@ describe('sidebar projections', () => {
     expect(coldRow?.title).toBe('Alpha') // displayTitle: cwd basename fallback, stable across restarts
     expect(warmRow?.title).toBe('Fix the parser bug') // real title when host cache has it
     expect(blankRow?.title).toBe('New Session') // blank always shows the placeholder
+  })
+})
+
+describe('virtualWindow', () => {
+  const stride = RECENT_ROW_STRIDE
+
+  it('returns the head window at the top of the list', () => {
+    // 350px viewport = 10 visible rows + 1 rounding + 4 overscan on each edge.
+    expect(virtualWindow(0, 350, 200)).toEqual({ start: 0, end: 15 })
+  })
+
+  it('slides the window with scroll position and pads both edges with overscan', () => {
+    const result = virtualWindow(100 * stride, 350, 400)
+    expect(result.start).toBe(96) // first visible 100 - 4 overscan
+    expect(result.end).toBe(115) // last visible 110 + 1 + 4 overscan
+  })
+
+  it('clamps scrollTop and the window at the list bottom', () => {
+    const result = virtualWindow(400 * stride, 350, 400)
+    expect(result).toEqual({ start: 386, end: 400 })
+  })
+
+  it('renders a short list in full regardless of scroll position', () => {
+    expect(virtualWindow(1000, 350, 3)).toEqual({ start: 0, end: 3 })
+  })
+
+  it('falls back to a small head window before the viewport is measured', () => {
+    expect(virtualWindow(0, 0, 50)).toEqual({ start: 0, end: 5 })
+  })
+
+  it('handles empty lists and negative scroll offsets', () => {
+    expect(virtualWindow(0, 350, 0)).toEqual({ start: 0, end: 0 })
+    expect(virtualWindow(-500, 350, 200)).toEqual({ start: 0, end: 15 })
   })
 })
 

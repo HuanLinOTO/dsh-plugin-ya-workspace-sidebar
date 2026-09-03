@@ -51,6 +51,22 @@ export interface WorkspaceRow {
 export declare function workspaceKeyForSession(sessionId: SessionId | undefined, workspaces: readonly WorkspaceView[]): WorkspaceId | typeof UNGROUPED | null;
 /** Derive global recent sessions, newest first. */
 export declare function deriveRecent(list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[], pending: PendingInteractionMap, limit?: number): SessionRow[];
+/** Fixed occupied height of one recent-sessions row: 33px two-line row + 2px vertical margins. */
+export declare const RECENT_ROW_STRIDE = 35;
+/** Half-open render window `[start, end)` of a fixed-stride virtual list. */
+export interface VirtualWindow {
+    start: number;
+    end: number;
+}
+/**
+ * Windowing math for the recent-sessions virtual list (fixed row stride).
+ *
+ * Clamps `scrollTop` into the valid range, then pads the visible row range
+ * with `overscan` rows on both edges. Before the viewport has been measured
+ * (`viewportHeight <= 0`) it still returns a small head window so the first
+ * paint is never blank.
+ */
+export declare function virtualWindow(scrollTop: number, viewportHeight: number, count: number, stride?: number, overscan?: number): VirtualWindow;
 /** Derive first-level workspaces plus Ungrouped, newest session activity first. */
 export declare function deriveWorkspaces(list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[]): WorkspaceRow[];
 /** Derive the selected workspace's sessions in its canonical order. */
