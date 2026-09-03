@@ -2,11 +2,18 @@
 import type {
   HostObservable, PropsLocale, PropsRenderSlots, PropsRuntime, SnapshotSelectorHook,
 } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SessionSearchResultItem } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
-  SessionId, SessionSearchResultItem, WorkspaceId, WorkspaceView,
-} from '@deepseek-ai/dsh-client-runtime/client'
+  WorkspaceId, WorkspaceSnapshot, WorkspaceView,
+} from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+// Type-only: pulls the sidebar shell's SlotMap owner merge (wide / expandSidebar).
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+// Type-only: pulls the conversation hero's SlotMap owner merge (picker seat).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Type-only: pulls ui-session's GlobalStandardProps merge (useSessions /
+// useSessionPendingInteraction) into PropsRuntime.
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { YaWorkspaceKey } from './locales.ts'
 
 /** Directory-picker conversation owned by each trigger surface. */
@@ -19,6 +26,13 @@ export interface DirectoryFlowOwnerProps {
 }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
+  /** The official ui-workspace provider is disabled by this bundle's patch,
+   * so this plugin owns the global workspaces selector hook (bound from the
+   * Workspace Controller snapshot this apply installs via slots.provideRoot). */
+  interface GlobalStandardProps {
+    useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>
+  }
+
   interface SlotMap {
     'sidebar.workspaces.directoryFlow': { kind: 'single'; scope: 'root'; owner: DirectoryFlowOwnerProps }
     'conversation.hero.workspace.directoryFlow': { kind: 'single'; scope: 'root'; owner: DirectoryFlowOwnerProps }

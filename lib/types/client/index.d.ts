@@ -1,5 +1,9 @@
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
-/** Services required by both replacement client entries. */
+/** Client assembly for the replacement workspace sidebar and hero picker. */
+import type { Context } from '@deepseek-ai/cordis';
+/**
+ * Services required by the replacement client entries. `remote` and
+ * `remote.directoryPicker` feed the uiWorkspace stand-in's directory picking.
+ */
 export declare const inject: string[];
 /** Register the sidebar browser and conversation hero picker. */
-export declare function apply(ctx: ClientContext): void;
+export declare function apply(ctx: Context): void;

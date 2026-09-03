@@ -18,3 +18,20 @@ export declare function getActionMode(): SessionActionMode;
 export declare function setActionMode(mode: SessionActionMode): void;
 /** Subscribe to action mode changes; returns an unsubscribe disposer. */
 export declare function subscribeActionMode(listener: () => void): () => void;
+/**
+ * Browser-local height (px) of the recent-sessions virtual viewport, set by
+ * dragging the separator between the recent block and the workspace browser
+ * (or nudging it with arrow keys). `undefined` means "never adjusted" and the
+ * stylesheet default (`min(280px, 40vh)`) applies. Persisted to
+ * `localStorage` like the action mode; per-browser by design.
+ */
+/** Lower bound of the recent-sessions viewport (about two rows). */
+export declare const RECENT_MIN_HEIGHT = 70;
+/** Absolute cap as a sanity net; the live drag clamps against free space. */
+export declare const RECENT_MAX_HEIGHT = 640;
+/** Current recent-sessions viewport height preference, if the user set one. */
+export declare function getRecentViewportHeight(): number | undefined;
+/** Store (or clear with `undefined`) the height preference and notify subscribers. */
+export declare function setRecentViewportHeight(height: number | undefined): void;
+/** Subscribe to recent height changes; returns an unsubscribe disposer. */
+export declare function subscribeRecentViewportHeight(listener: () => void): () => void;

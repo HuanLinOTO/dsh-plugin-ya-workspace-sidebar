@@ -1,24 +1,31 @@
 /** Two-level workspace/session browser with a persistent global recent block. */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import {
   Button, IconArchiveOutline20, IconBranchOutline16, IconChevronRightOutline14,
   IconCloseFill14, IconEditOutline16, IconEllipsisOutline16, IconFolderClose16,
   IconPlusOutline16, IconProjectAddOutline16, IconSearchOutline16, IconTrashOutline16,
   Menu, Modal, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SessionId, WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SidebarProps } from './contract.ts'
 import {
   deriveRecent, deriveWorkspaceGroups, deriveWorkspaceSessionGroups, deriveWorkspaceSessions,
-  deriveWorkspaces, localMatches, UNGROUPED, workspaceKeyForSession, type SessionRow,
-  type WorkspaceRow,
+  deriveWorkspaces, localMatches, UNGROUPED, workspaceKeyForSession, type PendingInteractionMap,
+  type SessionRow, type WorkspaceRow,
 } from './model.ts'
 import type { SessionActionMode } from './settings.ts'
-import { getActionMode, setActionMode, subscribeActionMode } from './settings.ts'
+import {
+  getActionMode, getRecentViewportHeight, RECENT_MIN_HEIGHT, setActionMode,
+  setRecentViewportHeight, subscribeActionMode, subscribeRecentViewportHeight,
+} from './settings.ts'
+import { VirtualRecentList } from './VirtualRecentList.tsx'
 import { WorkspacePickFlow } from './WorkspacePicker.tsx'
 
 const SEARCH_DEBOUNCE_MS = 250
 const SEARCH_MAX = 500
+/** Minimum height kept for the workspace browser below the recent block. */
+const MIN_WORKSPACE = 120
 
 function sanitized(value: string): string {
   return value.replaceAll('\0', '').slice(0, SEARCH_MAX)
@@ -186,20 +193,22 @@ interface RemoteState {
 /** Fill `sidebar.workspaces` with the replacement browser. */
 export function WorkspaceSidebar(props: SidebarProps) {
   const {
-    wide, expandSidebar, useSessions, useWorkspaces, startSession, open, searchSessions,
-    searchResultLimit, renameSession, forkSession, renameWorkspace, deleteWorkspace,
-    archiveSession, createWorkspace, useDirectoryFlow, renderSlot, t,
+    wide, expandSidebar, useSessions, useSessionPendingInteraction, useWorkspaces, startSession,
+    open, searchSessions, searchResultLimit, renameSession, forkSession, renameWorkspace,
+    deleteWorkspace, archiveSession, createWorkspace, useDirectoryFlow, renderSlot, t,
   } = props
   const sessions = useSessions(state => state)
   const workspaceState = useWorkspaces(state => state)
   const workspaces = workspaceState.items
   const archived = workspaceState.archivedSessionIds
+  const pendingInteractions: PendingInteractionMap = useSessionPendingInteraction(state => state)
   const directoryFlowAvailable = useDirectoryFlow(value => value)
   const allRows = useMemo(
-    () => deriveRecent(sessions, workspaces, archived, Number.MAX_SAFE_INTEGER),
-    [archived, sessions, workspaces],
+    () => deriveRecent(sessions, workspaces, archived, pendingInteractions, Number.MAX_SAFE_INTEGER),
+    [archived, pendingInteractions, sessions, workspaces],
   )
-  const recent = allRows.slice(0, 5)
+  // Full recency list; the block virtualizes instead of capping at five rows.
+  const recent = allRows
   const workspaceRows = useMemo(
     () => deriveWorkspaces(sessions, workspaces, archived),
     [archived, sessions, workspaces],
@@ -231,12 +240,12 @@ export function WorkspaceSidebar(props: SidebarProps) {
   // Real workspace level renders date-bucketed groups; Ungrouped keeps the flat recency view.
   const levelGroups = useMemo(
     () => selectedKey !== null && selectedKey !== UNGROUPED
-      ? deriveWorkspaceSessionGroups(selectedKey, sessions, workspaces, archived, now)
+      ? deriveWorkspaceSessionGroups(selectedKey, sessions, workspaces, archived, pendingInteractions, now)
       : [],
-    [archived, sessions, workspaces, selectedKey, now],
+    [archived, pendingInteractions, sessions, workspaces, selectedKey, now],
   )
   const levelRows = selectedKey === UNGROUPED
-    ? deriveWorkspaceSessions(UNGROUPED, sessions, workspaces, archived)
+    ? deriveWorkspaceSessions(UNGROUPED, sessions, workspaces, archived, pendingInteractions)
     : []
   const levelEmpty = selectedKey === UNGROUPED ? levelRows.length === 0 : levelGroups.every(g => g.rows.length === 0)
 
@@ -284,6 +293,98 @@ export function WorkspaceSidebar(props: SidebarProps) {
   const [sessionDeleteTarget, setSessionDeleteTarget] = useState<SessionRow | null>(null)
 
   useEffect(() => subscribeActionMode(() => setActionModeState(getActionMode())), [])
+
+  // Recent-block height preference (drag separator / arrow keys).
+  const [recentHeight, setRecentHeight] = useState<number | undefined>(() => getRecentViewportHeight())
+  const [recentResizing, setRecentResizing] = useState(false)
+  useEffect(() => subscribeRecentViewportHeight(() => { setRecentHeight(getRecentViewportHeight()) }), [])
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const recentBlockRef = useRef<HTMLDivElement | null>(null)
+  const breadcrumbRef = useRef<HTMLDivElement | null>(null)
+  const resizerRef = useRef<HTMLDivElement | null>(null)
+  const recentViewportRef = useRef<HTMLDivElement | null>(null)
+  const recentDrag = useRef<{
+    pointerId: number
+    startY: number
+    startHeight: number
+    max: number
+    moved: boolean
+  } | null>(null)
+
+  /** Effective max-height base and the largest height that keeps MIN_WORKSPACE visible. */
+  const measureRecentBounds = (): { base: number; max: number } | null => {
+    const viewport = recentViewportRef.current
+    const body = bodyRef.current
+    const resizer = resizerRef.current
+    if (viewport === null || body === null || resizer === null) return null
+    const computed = Number.parseFloat(window.getComputedStyle(viewport).maxHeight)
+    const base = Number.isFinite(computed) ? computed : viewport.clientHeight
+    const breadcrumb = breadcrumbRef.current
+    const block = recentBlockRef.current
+    const chrome = (block !== null ? block.offsetHeight : 0) - viewport.clientHeight
+      + (breadcrumb !== null ? breadcrumb.offsetHeight : 0) + resizer.offsetHeight
+    return { base, max: Math.max(RECENT_MIN_HEIGHT, Math.round(body.clientHeight - chrome - MIN_WORKSPACE)) }
+  }
+  const beginRecentResize = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || !event.isPrimary) return
+    const bounds = measureRecentBounds()
+    if (bounds === null) return
+    event.preventDefault()
+    recentDrag.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startHeight: bounds.base,
+      max: bounds.max,
+      moved: false,
+    }
+    resizerRef.current?.setPointerCapture(event.pointerId)
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
+    setRecentResizing(true)
+  }
+  const moveRecentResize = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = recentDrag.current
+    const viewport = recentViewportRef.current
+    if (drag === null || viewport === null || event.pointerId !== drag.pointerId) return
+    drag.moved = true
+    // Write the style directly: avoids re-rendering the whole sidebar per move.
+    const next = Math.round(Math.min(drag.max, Math.max(RECENT_MIN_HEIGHT, drag.startHeight + event.clientY - drag.startY)))
+    viewport.style.maxHeight = `${next}px`
+  }
+  const endRecentResize = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = recentDrag.current
+    if (drag === null) return
+    recentDrag.current = null
+    const resizer = resizerRef.current
+    if (resizer !== null && resizer.hasPointerCapture(event.pointerId)) resizer.releasePointerCapture(event.pointerId)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    setRecentResizing(false)
+    if (!drag.moved) return
+    const viewport = recentViewportRef.current
+    if (viewport === null) return
+    const written = Number.parseFloat(viewport.style.maxHeight)
+    if (!Number.isFinite(written)) return
+    const height = Math.round(written)
+    setRecentHeight(height)
+    setRecentViewportHeight(height)
+  }
+  const keyRecentResize = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+    event.preventDefault()
+    const bounds = measureRecentBounds()
+    if (bounds === null) return
+    const delta = event.key === 'ArrowUp' ? -35 : 35
+    const next = Math.round(Math.min(bounds.max, Math.max(RECENT_MIN_HEIGHT, (recentHeight ?? bounds.base) + delta)))
+    setRecentHeight(next)
+    setRecentViewportHeight(next)
+  }
+  const resetRecentHeight = () => {
+    const viewport = recentViewportRef.current
+    if (viewport !== null) viewport.style.maxHeight = ''
+    setRecentHeight(undefined)
+    setRecentViewportHeight(undefined)
+  }
 
   const beginWorkspaceRename = (row: WorkspaceRow) => { setWorkspaceRename(row); setRenameDraft(row.title); setRenameError(null) }
   const beginSessionRename = (row: SessionRow) => { setSessionRename(row); setRenameDraft(row.title); setRenameError(null) }
@@ -385,7 +486,7 @@ export function WorkspaceSidebar(props: SidebarProps) {
       </div>
 
       {wide && (
-        <div className="ya-body">
+        <div ref={bodyRef} className="ya-body">
           {normalizedQuery !== '' ? (
             <div className="ya-scroll" role="tree" aria-label={t('search')}>
               {searchRows.map(row => sessionItem(row, true))}
@@ -395,7 +496,7 @@ export function WorkspaceSidebar(props: SidebarProps) {
             </div>
           ) : (
             <>
-              <div className={`ya-recent${recentCollapsed ? ' ya-recent-collapsed' : ''}`}>
+              <div ref={recentBlockRef} className={`ya-recent${recentCollapsed ? ' ya-recent-collapsed' : ''}`}>
                 <div className="ya-block-label">
                   <span>{t('recent')}</span>
                   {recent.length > 0 && (
@@ -413,11 +514,35 @@ export function WorkspaceSidebar(props: SidebarProps) {
                 <div className="ya-recent-list-wrap">
                   {recent.length === 0
                     ? <div className="ya-empty">{t('noSessions')}</div>
-                    : <div className="ya-recent-list">{recent.map(row => sessionItem(row, true))}</div>
-                  }
+                    : (
+                      <VirtualRecentList
+                        rows={recent}
+                        ariaLabel={t('recent')}
+                        renderItem={row => sessionItem(row, true)}
+                        viewportRef={node => { recentViewportRef.current = node }}
+                        maxHeight={recentHeight}
+                      />
+                    )}
                 </div>
               </div>
-              <div className="ya-breadcrumb">
+              {!recentCollapsed && (
+                <div
+                  ref={resizerRef}
+                  className={`ya-recent-resizer${recentResizing ? ' ya-resizing' : ''}`}
+                  role="separator"
+                  aria-orientation="horizontal"
+                  aria-label={t('resizeRecent')}
+                  aria-valuenow={recentHeight}
+                  tabIndex={0}
+                  onPointerDown={beginRecentResize}
+                  onPointerMove={moveRecentResize}
+                  onPointerUp={endRecentResize}
+                  onPointerCancel={endRecentResize}
+                  onDoubleClick={resetRecentHeight}
+                  onKeyDown={keyRecentResize}
+                />
+              )}
+              <div ref={breadcrumbRef} className="ya-breadcrumb">
                 {selectedKey === null ? (
                   <span className="ya-crumb">{t('workspaces')}</span>
                 ) : (

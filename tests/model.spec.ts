@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import type {
-  SessionId, SessionListState, SessionSummary, WorkspaceId, WorkspaceView,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   deriveRecent, deriveWorkspaceGroups, deriveWorkspaceSessionGroups, deriveWorkspaceSessions,
-  deriveWorkspaces, localMatches, UNGROUPED, workspaceKeyForSession,
+  deriveWorkspaces, localMatches, RECENT_ROW_STRIDE, UNGROUPED, virtualWindow, workspaceKeyForSession,
 } from '../src/client/model.ts'
 
 const sid = (value: string) => value as SessionId
 const wid = (value: string) => value as WorkspaceId
+const NO_PENDING: ReadonlyMap<SessionId, { readonly kind: string }> = new Map()
 
 function session(id: string, updatedAt: number, overrides: Partial<SessionSummary> = {}): SessionSummary {
   return {
@@ -26,6 +27,9 @@ function list(rows: SessionSummary[], current?: SessionId): SessionListState {
     ids: rows.map(row => row.id),
     byId: Object.fromEntries(rows.map(row => [row.id, row])) as Record<SessionId, SessionSummary>,
     current,
+    phase: 'ready',
+    subagentsByParent: {},
+    jobsBySession: {},
   }
 }
 
@@ -55,7 +59,7 @@ describe('sidebar projections', () => {
       session('blank-hidden', 102, { blank: true }),
       session('blank-current', 103, { blank: true }),
     ]
-    const result = deriveRecent(list(rows, sid('blank-current')), workspaces, [sid('archived')])
+    const result = deriveRecent(list(rows, sid('blank-current')), workspaces, [sid('archived')], NO_PENDING)
     expect(result.map(row => row.id)).toEqual([
       sid('blank-current'), sid('a-new'), sid('b-one'), sid('stray'), sid('four'),
     ])
@@ -123,9 +127,9 @@ describe('sidebar projections', () => {
       session('stray-old', 4), session('stray-new', 8),
     ]
     const state = list(rows)
-    expect(deriveWorkspaceSessions(wid('alpha'), state, workspaces, []).map(row => row.id))
+    expect(deriveWorkspaceSessions(wid('alpha'), state, workspaces, [], NO_PENDING).map(row => row.id))
       .toEqual([sid('a-old'), sid('a-new')])
-    expect(deriveWorkspaceSessions(UNGROUPED, state, workspaces, []).map(row => row.id))
+    expect(deriveWorkspaceSessions(UNGROUPED, state, workspaces, [], NO_PENDING).map(row => row.id))
       .toEqual([sid('stray-new'), sid('stray-old')])
   })
 
@@ -133,7 +137,7 @@ describe('sidebar projections', () => {
     expect(workspaceKeyForSession(sid('a-new'), workspaces)).toBe(wid('alpha'))
     expect(workspaceKeyForSession(sid('stray'), workspaces)).toBe(UNGROUPED)
     expect(workspaceKeyForSession(undefined, workspaces)).toBeNull()
-    const rows = deriveRecent(list([session('a-new', 2), session('stray', 1)]), workspaces, [], 20)
+    const rows = deriveRecent(list([session('a-new', 2), session('stray', 1)]), workspaces, [], NO_PENDING, 20)
     expect(localMatches(rows, 'alpha').map(row => row.id)).toEqual([sid('a-new')])
   })
 
@@ -147,13 +151,46 @@ describe('sidebar projections', () => {
     // Blank session: never has a title; the renderer substitutes "New Session".
     // Blank rows are only visible when current, so blank must be the selected session.
     const blank = session('blank', 3, { displayTitle: 'Alpha', blank: true })
-    const result = deriveRecent(list([cold, warm, blank], sid('blank')), workspaces, [], 20)
+    const result = deriveRecent(list([cold, warm, blank], sid('blank')), workspaces, [], NO_PENDING, 20)
     const coldRow = result.find(row => row.id === sid('cold'))
     const warmRow = result.find(row => row.id === sid('warm'))
     const blankRow = result.find(row => row.id === sid('blank'))
     expect(coldRow?.title).toBe('Alpha') // displayTitle: cwd basename fallback, stable across restarts
     expect(warmRow?.title).toBe('Fix the parser bug') // real title when host cache has it
     expect(blankRow?.title).toBe('New Session') // blank always shows the placeholder
+  })
+})
+
+describe('virtualWindow', () => {
+  const stride = RECENT_ROW_STRIDE
+
+  it('returns the head window at the top of the list', () => {
+    // 350px viewport = 10 visible rows + 1 rounding + 4 overscan on each edge.
+    expect(virtualWindow(0, 350, 200)).toEqual({ start: 0, end: 15 })
+  })
+
+  it('slides the window with scroll position and pads both edges with overscan', () => {
+    const result = virtualWindow(100 * stride, 350, 400)
+    expect(result.start).toBe(96) // first visible 100 - 4 overscan
+    expect(result.end).toBe(115) // last visible 110 + 1 + 4 overscan
+  })
+
+  it('clamps scrollTop and the window at the list bottom', () => {
+    const result = virtualWindow(400 * stride, 350, 400)
+    expect(result).toEqual({ start: 386, end: 400 })
+  })
+
+  it('renders a short list in full regardless of scroll position', () => {
+    expect(virtualWindow(1000, 350, 3)).toEqual({ start: 0, end: 3 })
+  })
+
+  it('falls back to a small head window before the viewport is measured', () => {
+    expect(virtualWindow(0, 0, 50)).toEqual({ start: 0, end: 5 })
+  })
+
+  it('handles empty lists and negative scroll offsets', () => {
+    expect(virtualWindow(0, 350, 0)).toEqual({ start: 0, end: 0 })
+    expect(virtualWindow(-500, 350, 200)).toEqual({ start: 0, end: 15 })
   })
 })
 
@@ -191,7 +228,7 @@ describe('deriveWorkspaceSessionGroups', () => {
       session('a-yesterday', yesterday + 1000),
       session('a-today-early', now - 10_000),
     ]
-    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), groupedWorkspaces, [], now)
+    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), groupedWorkspaces, [], NO_PENDING, now)
     expect(groups.map(g => g.dayOffset)).toEqual([0, 1, 2])
     expect(groups[0].rows.map(r => r.id)).toEqual([sid('a-today-late'), sid('a-today-early')])
     expect(groups[1].rows.map(r => r.id)).toEqual([sid('a-yesterday')])
@@ -210,7 +247,7 @@ describe('deriveWorkspaceSessionGroups', () => {
       title: 'Alpha',
       sessionIds: [sid('a-today-early'), sid('a-today-late'), sid('a-today-mid')],
     }]
-    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), workspacesToday, [], now)
+    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), workspacesToday, [], NO_PENDING, now)
     expect(groups).toHaveLength(1)
     expect(groups[0].rows.map(r => r.id)).toEqual([sid('a-today-late'), sid('a-today-mid'), sid('a-today-early')])
   })
@@ -223,7 +260,7 @@ describe('deriveWorkspaceSessionGroups', () => {
       session('a-old', twoDaysAgo + 1000),
     ]
     const state = list(rows, sid('a-yesterday'))
-    const groups = deriveWorkspaceSessionGroups(wid('alpha'), state, groupedWorkspaces, [sid('a-old')], now)
+    const groups = deriveWorkspaceSessionGroups(wid('alpha'), state, groupedWorkspaces, [sid('a-old')], NO_PENDING, now)
     const ids = groups.flatMap(g => g.rows.map(r => r.id))
     // subagent filtered, archived filtered, blank visible only because it's current.
     // Today's bucket comes before yesterday's bucket.
@@ -236,7 +273,7 @@ describe('deriveWorkspaceSessionGroups', () => {
       session('a-yesterday', yesterday + 1000),
       session('a-old', twoDaysAgo + 1000),
     ]
-    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), groupedWorkspaces, [], now)
+    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), groupedWorkspaces, [], NO_PENDING, now)
     const byId = Object.fromEntries(groups.map(g => [g.dayOffset, g.dateKey]))
     expect(byId[0]).toBeDefined()
     expect(byId[1]).toBeDefined()
@@ -262,7 +299,7 @@ describe('deriveWorkspaceSessionGroups', () => {
       title: 'Alpha',
       sessionIds: [sid('a-future'), sid('a-today-late')],
     }]
-    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), workspacesWithFuture, [], now)
+    const groups = deriveWorkspaceSessionGroups(wid('alpha'), list(rows), workspacesWithFuture, [], NO_PENDING, now)
     expect(groups).toHaveLength(1)
     expect(groups[0].dayOffset).toBe(0)
     expect(groups[0].rows.map(r => r.id)).toEqual([sid('a-future'), sid('a-today-late')])
@@ -270,17 +307,17 @@ describe('deriveWorkspaceSessionGroups', () => {
 
   it('returns empty array for Ungrouped key (caller falls back to flat logic)', () => {
     const rows = [session('stray', now - 1000)]
-    expect(deriveWorkspaceSessionGroups(UNGROUPED, list(rows), groupedWorkspaces, [], now)).toEqual([])
+    expect(deriveWorkspaceSessionGroups(UNGROUPED, list(rows), groupedWorkspaces, [], NO_PENDING, now)).toEqual([])
   })
 
   it('returns empty array for unknown workspace id', () => {
     const rows = [session('a-today-late', now - 1000)]
-    expect(deriveWorkspaceSessionGroups(wid('missing'), list(rows), groupedWorkspaces, [], now)).toEqual([])
+    expect(deriveWorkspaceSessionGroups(wid('missing'), list(rows), groupedWorkspaces, [], NO_PENDING, now)).toEqual([])
   })
 
   it('returns empty array when the workspace has no visible sessions', () => {
     const rows = [session('a-today-late', now - 1000)]
-    expect(deriveWorkspaceSessionGroups(wid('alpha'), list(rows), groupedWorkspaces, [sid('a-today-late')], now)).toEqual([])
+    expect(deriveWorkspaceSessionGroups(wid('alpha'), list(rows), groupedWorkspaces, [sid('a-today-late')], NO_PENDING, now)).toEqual([])
   })
 
   it('Ungrouped still uses deriveWorkspaceSessions for its flat recency list', () => {
@@ -290,7 +327,25 @@ describe('deriveWorkspaceSessionGroups', () => {
       session('stray-new', now - 1000),
     ]
     const state = list(rows)
-    expect(deriveWorkspaceSessions(UNGROUPED, state, groupedWorkspaces, []).map(r => r.id))
+    expect(deriveWorkspaceSessions(UNGROUPED, state, groupedWorkspaces, [], NO_PENDING).map(r => r.id))
       .toEqual([sid('stray-new'), sid('stray-old')])
+  })
+
+  it('surfaces pending interactions from the ui-session snapshot as row status', () => {
+    const pending = new Map<SessionId, { readonly kind: string }>([
+      [sid('a-new'), { kind: 'approval' }],
+      [sid('stray'), { kind: 'plan-review' }],
+      [sid('four'), { kind: 'some-future-kind' }],
+    ])
+    const rows = [
+      session('a-old', 1), session('a-new', 9), session('b-one', 8),
+      session('stray', 7), session('four', 6),
+    ]
+    const result = deriveRecent(list(rows), workspaces, [], pending)
+    expect(result.find(row => row.id === sid('a-new'))?.pendingInteraction).toBe('approval')
+    expect(result.find(row => row.id === sid('stray'))?.pendingInteraction).toBe('plan-review')
+    // Unknown kinds stay invisible until their domain ships a renderer mapping.
+    expect(result.find(row => row.id === sid('four'))?.pendingInteraction).toBeUndefined()
+    expect(result.find(row => row.id === sid('a-old'))?.pendingInteraction).toBeUndefined()
   })
 })

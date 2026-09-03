@@ -1,7 +1,25 @@
 /** Pure sidebar projections shared by the browser and unit tests. */
-import type {
-  SessionId, SessionListState, SessionSummary, WorkspaceId, WorkspaceView,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+
+/** Pending-interaction kinds surfaced as a row status dot. */
+export type PendingInteractionKind = 'approval' | 'plan-review' | 'question'
+
+/** Renderer-visible view of ui-session's pending-interaction snapshot entries. */
+export type PendingInteractionEntry = { readonly kind: string }
+
+/** Pending-interaction snapshot consumed by the derive functions. */
+export type PendingInteractionMap = ReadonlyMap<SessionId, PendingInteractionEntry>
+
+/** Resolve the visible status-dot kind for one session, if any. */
+function pendingKindOf(
+  pending: PendingInteractionMap,
+  id: SessionId,
+): PendingInteractionKind | undefined {
+  const kind = pending.get(id)?.kind
+  return kind === 'approval' || kind === 'plan-review' || kind === 'question' ? kind : undefined
+}
 
 /** Navigation key for sessions not accounted to a real workspace. */
 export const UNGROUPED = '__ya_ungrouped__' as const
@@ -12,7 +30,7 @@ export interface SessionRow {
   title: string
   blank: boolean
   running: boolean
-  pendingInteraction?: SessionSummary['pendingInteraction']
+  pendingInteraction?: PendingInteractionKind
   completed: boolean
   updatedAt: number
   workspaceKey: WorkspaceId | typeof UNGROUPED
@@ -56,13 +74,15 @@ function rowOf(
   summary: SessionSummary,
   workspaceKey: WorkspaceId | typeof UNGROUPED,
   workspaceTitle: string,
+  pending: PendingInteractionMap,
 ): SessionRow {
+  const pendingInteraction = pendingKindOf(pending, summary.id)
   return {
     id: summary.id,
     title: summary.blank ? 'New Session' : summary.displayTitle,
     blank: summary.blank,
     running: summary.running,
-    ...(summary.pendingInteraction === undefined ? {} : { pendingInteraction: summary.pendingInteraction }),
+    ...(pendingInteraction === undefined ? {} : { pendingInteraction }),
     completed: summary.completed === true,
     updatedAt: summary.updatedAt,
     workspaceKey,
@@ -92,6 +112,7 @@ export function deriveRecent(
   list: SessionListState,
   workspaces: readonly WorkspaceView[],
   archivedSessionIds: readonly SessionId[],
+  pending: PendingInteractionMap,
   limit = 5,
 ): SessionRow[] {
   const archived = new Set(archivedSessionIds)
@@ -103,8 +124,43 @@ export function deriveRecent(
     .slice(0, limit)
     .map((summary) => {
       const workspace = owners.get(summary.id)
-      return rowOf(summary, workspace?.workspaceId ?? UNGROUPED, workspace?.title ?? 'Ungrouped')
+      return rowOf(summary, workspace?.workspaceId ?? UNGROUPED, workspace?.title ?? 'Ungrouped', pending)
     })
+}
+
+/** Fixed occupied height of one recent-sessions row: 33px two-line row + 2px vertical margins. */
+export const RECENT_ROW_STRIDE = 35
+
+/** Half-open render window `[start, end)` of a fixed-stride virtual list. */
+export interface VirtualWindow {
+  start: number
+  end: number
+}
+
+/**
+ * Windowing math for the recent-sessions virtual list (fixed row stride).
+ *
+ * Clamps `scrollTop` into the valid range, then pads the visible row range
+ * with `overscan` rows on both edges. Before the viewport has been measured
+ * (`viewportHeight <= 0`) it still returns a small head window so the first
+ * paint is never blank.
+ */
+export function virtualWindow(
+  scrollTop: number,
+  viewportHeight: number,
+  count: number,
+  stride: number = RECENT_ROW_STRIDE,
+  overscan = 4,
+): VirtualWindow {
+  if (count <= 0 || stride <= 0) return { start: 0, end: 0 }
+  const height = Math.max(0, viewportHeight)
+  const top = Math.min(Math.max(0, scrollTop), Math.max(0, count * stride - height))
+  const first = Math.floor(top / stride)
+  const last = height > 0 ? Math.floor((top + height) / stride) : first
+  return {
+    start: Math.max(0, first - overscan),
+    end: Math.min(count, last + 1 + overscan),
+  }
 }
 
 function lastUsedOf(timestamps: readonly number[], fallback?: string): number | undefined {
@@ -175,6 +231,7 @@ export function deriveWorkspaceSessions(
   list: SessionListState,
   workspaces: readonly WorkspaceView[],
   archivedSessionIds: readonly SessionId[],
+  pending: PendingInteractionMap,
 ): SessionRow[] {
   const archived = new Set(archivedSessionIds)
   if (key === UNGROUPED) {
@@ -185,14 +242,14 @@ export function deriveWorkspaceSessions(
         && !accounted.has(summary.id)
         && visible(summary, list.current, archived))
       .sort((a, b) => b.updatedAt - a.updatedAt || String(a.id).localeCompare(String(b.id)))
-      .map(summary => rowOf(summary, UNGROUPED, 'Ungrouped'))
+      .map(summary => rowOf(summary, UNGROUPED, 'Ungrouped', pending))
   }
   const workspace = workspaces.find(item => item.workspaceId === key)
   if (workspace === undefined) return []
   return workspace.sessionIds
     .map(id => list.byId[id])
     .filter((summary): summary is SessionSummary => summary !== undefined && visible(summary, list.current, archived))
-    .map(summary => rowOf(summary, workspace.workspaceId, workspace.title))
+    .map(summary => rowOf(summary, workspace.workspaceId, workspace.title, pending))
 }
 
 /** Format a local calendar date as `YYYY-MM-DD` (locale-agnostic, no padding surprises). */
@@ -254,6 +311,7 @@ export function deriveWorkspaceSessionGroups(
   list: SessionListState,
   workspaces: readonly WorkspaceView[],
   archivedSessionIds: readonly SessionId[],
+  pending: PendingInteractionMap,
   now: number,
 ): SessionDateGroup[] {
   if (key === UNGROUPED) return []
@@ -263,7 +321,7 @@ export function deriveWorkspaceSessionGroups(
   const rows = workspace.sessionIds
     .map(id => list.byId[id])
     .filter((summary): summary is SessionSummary => summary !== undefined && visible(summary, list.current, archived))
-    .map(summary => rowOf(summary, workspace.workspaceId, workspace.title))
+    .map(summary => rowOf(summary, workspace.workspaceId, workspace.title, pending))
   return groupByLocalDate(
     rows,
     row => row.updatedAt,

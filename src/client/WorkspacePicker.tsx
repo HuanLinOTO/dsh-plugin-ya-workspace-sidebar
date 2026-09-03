@@ -5,8 +5,8 @@ import {
   Button, IconFolderClose16, IconPlusOutline16, Menu, Modal, type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
-  WorkspaceId, WorkspaceListState, WorkspaceView,
-} from '@deepseek-ai/dsh-client-runtime/client'
+  WorkspaceId, WorkspaceSnapshot, WorkspaceView,
+} from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { DirectoryFlowOwnerProps, PickerProps } from './contract.ts'
 
@@ -16,7 +16,7 @@ interface FlowProps {
   t: PickerProps['t']
   open: boolean
   anchorRef?: RefObject<HTMLElement | null>
-  useWorkspaces: <S>(selector: (state: WorkspaceListState) => S) => S
+  useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>
   createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
   useDirectoryFlow: SnapshotSelectorHook<boolean>
   renderDirectoryFlow: (owner: DirectoryFlowOwnerProps) => ReactNode

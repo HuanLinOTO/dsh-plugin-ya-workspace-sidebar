@@ -18,7 +18,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { Context } from 'cordis'
+import type { Context } from '@deepseek-ai/cordis'
 
 export const name = 'ya-workspace-sidebar'
 
