@@ -22,6 +22,7 @@ export declare class YaWorkspaceNavigation extends Service implements UiWorkspac
     private readonly workspaces;
     private readonly sessions;
     private readonly connecting;
+    private readonly lifetime;
     /**
      * @param ctx - Client root Context.
      * @param directoryPicker - the directory-picking Remote namespace.
@@ -30,6 +31,9 @@ export declare class YaWorkspaceNavigation extends Service implements UiWorkspac
      */
     constructor(ctx: Context, directoryPicker: ClientRemote['directoryPicker'], workspaces: IWorkspaces, sessions: ISessions);
     connectWorkspace(workspaceId: WorkspaceId): Promise<SessionId>;
+    openSession(sessionId: SessionId): void;
+    openWorkspace(workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): Promise<void>;
+    forkSession(sessionId: SessionId): Promise<void>;
     startSession(workspaceId?: WorkspaceId): void;
     archiveSession(sessionId: SessionId): Promise<void>;
     pickDirectory(): Promise<string | null>;

@@ -21,11 +21,14 @@ import type {
 // Type-only: the official service face this plugin replaces. The stand-in
 // satisfies the same members so every official consumer keeps compiling.
 import type { UiWorkspace } from '@deepseek-ai/dsh-client-ui-workspace/client'
+// Type-only: pulls the layout service merge (ctx.layout) used by navigation.
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /** Implements Workspace navigation and directory UI operations. */
 export class YaWorkspaceNavigation extends Service implements UiWorkspace {
   private readonly connecting = new Map<WorkspaceId, Promise<SessionId>>()
+  private readonly lifetime = new AbortController()
 
   /**
    * @param ctx - Client root Context.
@@ -71,6 +74,26 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
     return attempt
   }
 
+  openSession(sessionId: SessionId): void {
+    this.sessions.open(sessionId)
+    this.ctx.layout.selectPanel(null)
+  }
+
+  async openWorkspace(workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): Promise<void> {
+    const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
+    const isCurrent = (): boolean => !navigation.aborted
+    const sessionId = await this.connectWorkspace(workspaceId)
+    if (!isCurrent()) return
+    beforeOpen?.(sessionId)
+    if (isCurrent()) this.openSession(sessionId)
+  }
+
+  async forkSession(sessionId: SessionId): Promise<void> {
+    const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
+    const childId = await this.sessions.fork({ sessionId, increaseTitle: true })
+    if (!navigation.aborted) this.openSession(childId)
+  }
+
   startSession(workspaceId?: WorkspaceId): void {
     const workspaces = this.workspaces.list.getSnapshot()
     const sessions = this.sessions.list.getSnapshot()
@@ -84,10 +107,11 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
     const target = workspaceId ?? currentWorkspaceId ?? recent
     if (target === undefined) {
       this.sessions.clear()
+      this.ctx.layout.selectPanel(null)
       return
     }
-    void this.connectWorkspace(target).then(
-      (sessionId) => { this.sessions.open(sessionId) },
+    void this.openWorkspace(target).then(
+      () => {},
       (reason: unknown) => { console.warn('ya-workspace-sidebar: new session failed:', reason) },
     )
   }
@@ -116,9 +140,8 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
 
   private watchNavigation(): () => void {
     let initial: 'waiting' | 'connecting' | 'done' = 'waiting'
-    let disposed = false
     const reconcile = (): void => {
-      if (disposed) return
+      if (this.lifetime.signal.aborted) return
       if (this.clearArchivedCurrent()) return
       if (initial !== 'waiting') return
       const workspaces = this.workspaces.list.getSnapshot()
@@ -136,14 +159,14 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
       initial = 'connecting'
       void this.connectWorkspace(target).then(
         (sessionId) => {
-          if (disposed) return
+          if (this.lifetime.signal.aborted) return
           if (this.sessions.list.getSnapshot().current === undefined) {
             this.sessions.open(sessionId)
           }
           initial = 'done'
         },
         (reason: unknown) => {
-          if (disposed) return
+          if (this.lifetime.signal.aborted) return
           initial = 'waiting'
           console.warn('ya-workspace-sidebar: initial workspace selection failed:', reason)
         },
@@ -153,7 +176,7 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
     const disposeSessions = this.sessions.list.subscribe(reconcile)
     reconcile()
     return () => {
-      disposed = true
+      this.lifetime.abort()
       disposeSessions()
       disposeWorkspaces()
     }

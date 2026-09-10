@@ -30,6 +30,7 @@ function list(rows: SessionSummary[], current?: SessionId): SessionListState {
     phase: 'ready',
     subagentsByParent: {},
     jobsBySession: {},
+    currentAddress: undefined,
   }
 }
 

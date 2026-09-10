@@ -56,6 +56,7 @@ function sessionState(
     phase,
     subagentsByParent: {},
     jobsBySession: {},
+    currentAddress: undefined,
   }
 }
 
@@ -98,6 +99,7 @@ class FakeSessions {
   readonly create: ReturnType<typeof vi.fn<ISessions['create']>>
   readonly open: ReturnType<typeof vi.fn<(id: SessionId) => void>>
   readonly clear: ReturnType<typeof vi.fn<() => void>>
+  readonly fork: ReturnType<typeof vi.fn<ISessions['fork']>>
 
   constructor(initial: SessionListState) {
     this.list = new MutableSource(initial)
@@ -109,6 +111,7 @@ class FakeSessions {
     this.clear = vi.fn(() => {
       this.list.update(state => ({ ...state, current: undefined }))
     })
+    this.fork = vi.fn<ISessions['fork']>(async options => sid(`forked-${String(options.sessionId)}`))
   }
 }
 
@@ -164,6 +167,19 @@ function bench(options: {
   sessions?: SessionListState
 } = {}) {
   const ctx = new Context()
+  let pending = new AbortController()
+  const selectPanel = vi.fn(() => { pending.abort() })
+  ctx.provide('layout', {
+    selectPanel,
+    beginNavigation: () => {
+      pending.abort()
+      pending = new AbortController()
+      return pending.signal
+    },
+    toggleSidebar: () => {},
+    openRightbar: () => {},
+    closeRightbar: () => {},
+  })
   const directoryPicker = new FakeDirectoryPicker()
   const workspaces = new FakeWorkspaces(options.workspaces ?? workspaceState())
   const sessions = new FakeSessions(options.sessions ?? sessionState())
@@ -173,7 +189,7 @@ function bench(options: {
     workspaces as unknown as IWorkspaces,
     sessions as unknown as ISessions,
   )
-  return { ctx, directoryPicker, sessions, navigation, workspaces }
+  return { ctx, directoryPicker, sessions, navigation, workspaces, selectPanel }
 }
 
 const settle = (): Promise<void> => new Promise(resolve => { setTimeout(resolve, 0) })
@@ -243,10 +259,48 @@ describe('uiWorkspace stand-in', () => {
   })
 
   it('startSession clears the selection when no workspace is available', () => {
-    const { navigation, sessions } = bench()
+    const { navigation, sessions, selectPanel } = bench()
     navigation.startSession()
     expect(sessions.clear).toHaveBeenCalled()
     expect(sessions.create).not.toHaveBeenCalled()
+    expect(selectPanel).toHaveBeenCalledWith(null)
+  })
+
+  it('openSession selects before revealing the Conversation panel', () => {
+    const { navigation, sessions, selectPanel } = bench()
+    navigation.openSession(sid('target'))
+    expect(sessions.open).toHaveBeenCalledWith(sid('target'))
+    expect(selectPanel).toHaveBeenCalledWith(null)
+    expect(sessions.open.mock.invocationCallOrder[0]).toBeLessThan(selectPanel.mock.invocationCallOrder[0]!)
+  })
+
+  it('openWorkspace connects, runs preparation, then opens', async () => {
+    const { navigation, sessions } = bench({
+      workspaces: workspaceState([workspace('alpha')]),
+      sessions: sessionState([summary('current')], sid('current')),
+    })
+    const beforeOpen = vi.fn()
+    await navigation.openWorkspace(wid('alpha'), beforeOpen)
+    expect(sessions.create).toHaveBeenCalledWith({ workspaceId: wid('alpha') })
+    expect(beforeOpen).toHaveBeenCalledWith(sid('created-alpha'))
+    expect(sessions.open).toHaveBeenCalledWith(sid('created-alpha'))
+  })
+
+  it('skips opening a superseded openWorkspace request', async () => {
+    const { navigation, sessions, selectPanel } = bench({
+      workspaces: workspaceState([workspace('alpha')]),
+      sessions: sessionState([summary('current')], sid('current')),
+    })
+    await navigation.openWorkspace(wid('alpha'), () => { selectPanel('panel-a' as never) })
+    expect(selectPanel).toHaveBeenCalledWith('panel-a')
+    expect(sessions.open).not.toHaveBeenCalled()
+  })
+
+  it('forkSession forks with an incremented title and opens the child', async () => {
+    const { navigation, sessions } = bench()
+    await navigation.forkSession(sid('source'))
+    expect(sessions.fork).toHaveBeenCalledWith({ sessionId: sid('source'), increaseTitle: true })
+    expect(sessions.open).toHaveBeenCalledWith(sid('forked-source'))
   })
 
   it('delegates archiving to the Workspace Controller', async () => {

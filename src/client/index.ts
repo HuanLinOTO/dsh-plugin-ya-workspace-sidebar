@@ -24,7 +24,7 @@ import { WorkspaceSidebar } from './WorkspaceSidebar.tsx'
  * `remote.directoryPicker` feed the uiWorkspace stand-in's directory picking.
  */
 export const inject = [
-  'slots', 'sessions', 'workspaces', 'locale', 'remote', 'remote.directoryPicker',
+  'slots', 'sessions', 'workspaces', 'locale', 'remote', 'remote.directoryPicker', 'layout',
 ]
 
 /** Register the sidebar browser and conversation hero picker. */
@@ -82,7 +82,7 @@ export function apply(ctx: Context): void {
   }
   const sidebarInjected = (): SidebarInjected => ({
     startSession: workspaceId => { navigation.startSession(workspaceId) },
-    open: sessionId => { ctx.sessions.open(sessionId) },
+    open: sessionId => { navigation.openSession(sessionId) },
     searchSessions,
     searchResultLimit: ctx.sessions.searchResultLimit,
     renameSession: async (sessionId, title) => {
@@ -92,9 +92,10 @@ export function apply(ctx: Context): void {
       if (!result.ok) throw new Error(result.error.message)
     },
     forkSession: sessionId => {
-      ctx.sessions.fork({ sessionId, increaseTitle: true })
-        .then(childId => { ctx.sessions.open(childId) })
-        .catch(() => {})
+      navigation.forkSession(sessionId)
+        .catch(() => {
+          // Fork or child-rename failure keeps the current selection.
+        })
     },
     renameWorkspace: async (workspaceId, title) => { await ctx.workspaces.rename(workspaceId, title) },
     deleteWorkspace: async workspaceId => { await ctx.workspaces.delete(workspaceId) },
