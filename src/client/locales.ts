@@ -53,6 +53,16 @@ export const zh = {
   yesterday: '昨天',
   date: '{m}月{d}日',
   dateYear: '{y}年{m}月{d}日',
+  pin: '置顶',
+  unpin: '取消置顶',
+  pinnedGroup: '置顶',
+  markUnread: '标记为未读',
+  markRead: '标记为已读',
+  revealInExplorer: '在资源管理器中打开',
+  copyPath: '复制路径',
+  copySessionDir: '复制任务路径',
+  copyLogPath: '复制日志路径',
+  copySessionId: '复制会话 ID',
 } satisfies Record<string, string>
 
 export type YaWorkspaceKey = keyof typeof zh
@@ -111,6 +121,16 @@ export const en = {
   yesterday: 'Yesterday',
   date: '{m}/{d}',
   dateYear: '{m}/{d}/{y}',
+  pin: 'Pin',
+  unpin: 'Unpin',
+  pinnedGroup: 'Pinned',
+  markUnread: 'Mark as unread',
+  markRead: 'Mark as read',
+  revealInExplorer: 'Reveal in file manager',
+  copyPath: 'Copy path',
+  copySessionDir: 'Copy task path',
+  copyLogPath: 'Copy log path',
+  copySessionId: 'Copy session ID',
 } satisfies Record<YaWorkspaceKey, string>
 
 export const NS = 'ya-workspace-sidebar'

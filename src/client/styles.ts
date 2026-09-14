@@ -62,6 +62,12 @@ button.ya-crumb:hover { background:var(--dsw-alias-interactive-bg-hover); color:
 @keyframes ya-slide-in-backward { from { opacity:0; transform:translateX(-10px); } to { opacity:1; transform:translateX(0); } }
 .ya-level-enter-forward { animation:ya-slide-in-forward 180ms ease-out; }
 .ya-level-enter-backward { animation:ya-slide-in-backward 180ms ease-out; }
+.ya-unread-dot { position:relative; flex:none; width:10px; height:10px; }
+.ya-unread-dot::before { content:''; position:absolute; inset:0; border-radius:50%; background:var(--dsw-static-deepseek-450); opacity:.1; }
+.ya-unread-dot::after { content:''; position:absolute; inset:20%; border-radius:50%; background:var(--dsw-static-deepseek-450); }
+.ya-row.ya-unread .ya-row-title { font-weight:600; }
+.ya-pin-mark { flex:none; display:inline-flex; color:var(--dsw-alias-label-tertiary); }
+.ya-row.ya-pinned .ya-pin-mark { color:var(--dsw-alias-label-secondary); }
 `
 
 /** Install the stylesheet and return its disposer. */

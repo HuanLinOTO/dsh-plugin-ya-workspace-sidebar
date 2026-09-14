@@ -2,18 +2,22 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import {
   Button, IconArchiveOutline20, IconBranchOutline16, IconChevronRightOutline14,
-  IconCloseFill14, IconEditOutline16, IconEllipsisOutline16, IconFolderClose16,
+  IconClockOutline16, IconCloseFill14, IconCopyOutline16, IconEditOutline16,
+  IconEllipsisOutline16, IconFolderClose16, IconFolderOpenOutline16, IconLinkOutline16,
   IconPlusOutline16, IconProjectAddOutline16, IconSearchOutline16, IconTrashOutline16,
-  Menu, Modal, StateDot,
+  Menu, Modal, StateDot, writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
-import type { SidebarProps } from './contract.ts'
+import type { SessionPaths, SidebarProps } from './contract.ts'
 import {
-  deriveRecent, deriveWorkspaceGroups, deriveWorkspaceSessionGroups, deriveWorkspaceSessions,
-  deriveWorkspaces, localMatches, UNGROUPED, workspaceKeyForSession, type PendingInteractionMap,
-  type SessionRow, type WorkspaceRow,
+  applyPinned, deriveRecent, deriveWorkspaceGroups, deriveWorkspaceSessionGroups,
+  deriveWorkspaceSessions, deriveWorkspaces, extractPinnedGroups, localMatches, UNGROUPED,
+  workspaceKeyForSession, type PendingInteractionMap, type SessionRow, type WorkspaceRow,
 } from './model.ts'
+import {
+  getPinnedOrder, getUnread, markRead, markUnread, subscribePinned, subscribeUnread, togglePinned,
+} from './session-flags.ts'
 import type { SessionActionMode } from './settings.ts'
 import {
   getActionMode, getRecentViewportHeight, RECENT_MIN_HEIGHT, setActionMode,
@@ -55,11 +59,25 @@ function dateGroupLabel(group: { dateKey: string; dayOffset: number }, now: numb
   return t('dateYear', { y: year, m: month, d: day })
 }
 
-function SessionStatus({ row }: { row: SessionRow }) {
+/** Row status priority: interaction > running > unread > completed reminder. */
+function SessionStatus({ row, unread }: { row: SessionRow; unread: boolean }) {
   if (row.pendingInteraction !== undefined) return <StateDot state="warning" />
   if (row.running) return <StateDot state="ongoing" />
+  if (unread) return <span className="ya-unread-dot" aria-hidden="true" />
   if (row.completed) return <StateDot state="done" />
   return null
+}
+
+/** Pinned-row marker (self-drawn pin glyph; color via the skin tokens). */
+function PinMark({ size = 12 }: { size?: number }) {
+  return (
+    <svg className="ya-pin-mark" width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M9.8 1.2 14.8 6.2 13.4 7.6 12.7 6.9 9.6 10 9.9 12.1 8.4 13.6 5.6 10.8 2.5 13.9 1.4 12.8 4.5 9.7 1.7 6.9 3.2 5.4 5.3 5.7 8.4 2.6 7.7 1.9 3.1 1.2Z"
+      />
+    </svg>
+  )
 }
 
 interface SessionRowProps {
@@ -73,24 +91,45 @@ interface SessionRowProps {
   t: SidebarProps['t']
   context?: boolean
   actionMode: SessionActionMode
+  pinned: boolean
+  unread: boolean
+  paths: SessionPaths | undefined
+  onOpenMenu: (row: SessionRow) => void
+  onReveal: (cwd: string) => void
+  onCopy: (text: string) => void
 }
 
-function SessionItem({ row, current, now, open, rename, fork, archive, t, context, actionMode }: SessionRowProps) {
-  const [menuOpen, setMenuOpen] = useState(false)
+function SessionItem({
+  row, current, now, open, rename, fork, archive, t, context, actionMode,
+  pinned, unread, paths, onOpenMenu, onReveal, onCopy,
+}: SessionRowProps) {
+  const [menuOpenButton, setMenuOpenButton] = useState(false)
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  const menuOpen = menuOpenButton || menuAt !== null
+  const closeMenu = (): void => { setMenuOpenButton(false); setMenuAt(null) }
   const title = row.blank ? t('newSession') : row.title
   const isDelete = actionMode === 'delete'
   const actionLabel = isDelete ? t('deleteSession') : t('archive')
   const actionIcon = isDelete ? <IconTrashOutline16 /> : <IconArchiveOutline20 size={16} />
+  const hasCwd = row.cwd !== undefined
+  const pathsKnown = paths !== undefined
   return (
     <div
-      className={`ya-row${row.id === current ? ' ya-selected' : ''}${menuOpen ? ' ya-menu-open' : ''}`}
+      className={`ya-row${row.id === current ? ' ya-selected' : ''}${menuOpen ? ' ya-menu-open' : ''}${unread ? ' ya-unread' : ''}${pinned ? ' ya-pinned' : ''}`}
       role="treeitem"
       aria-selected={row.id === current}
       onClick={() => { open(row.id) }}
+      onContextMenu={(event) => {
+        if (row.blank) return
+        event.preventDefault()
+        onOpenMenu(row)
+        setMenuAt({ x: event.clientX, y: event.clientY })
+      }}
     >
-      <span className="ya-status-slot"><SessionStatus row={row} /></span>
+      <span className="ya-status-slot"><SessionStatus row={row} unread={unread} /></span>
       <span className="ya-row-main">
         <span className="ya-row-line">
+          {pinned && <PinMark />}
           <span className="ya-row-title">{title}</span>
           {!row.blank && <span className="ya-row-meta ya-row-time">{relativeTime(row.updatedAt, now, t)}</span>}
         </span>
@@ -100,26 +139,43 @@ function SessionItem({ row, current, now, open, rename, fork, archive, t, contex
         <span className="ya-row-actions">
           <Menu
             open={menuOpen}
-            onClose={() => { setMenuOpen(false) }}
+            onClose={closeMenu}
             items={[
+              { id: 'pin', label: pinned ? t('unpin') : t('pin'), icon: <PinMark size={14} /> },
               { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
               { id: 'fork', label: t('fork'), icon: <IconBranchOutline16 /> },
+              { id: 'unread', label: unread ? t('markRead') : t('markUnread'), icon: <IconClockOutline16 /> },
+              { type: 'separator', id: 'sep-manage' },
+              { id: 'reveal', label: t('revealInExplorer'), icon: <IconFolderOpenOutline16 />, disabled: !hasCwd },
+              { id: 'copy-path', label: t('copyPath'), icon: <IconCopyOutline16 />, disabled: !hasCwd },
+              { id: 'copy-dir', label: t('copySessionDir'), icon: <IconCopyOutline16 />, disabled: !pathsKnown || paths?.dir == null },
+              { id: 'copy-log', label: t('copyLogPath'), icon: <IconCopyOutline16 />, disabled: !pathsKnown || paths?.log == null },
+              { id: 'copy-id', label: t('copySessionId'), icon: <IconLinkOutline16 /> },
+              { type: 'separator', id: 'sep-archive' },
               { id: 'archive', label: actionLabel, icon: actionIcon, danger: isDelete },
             ]}
             onSelect={(id) => {
-              setMenuOpen(false)
-              if (id === 'rename') rename(row)
-              if (id === 'fork') fork(row.id)
+              closeMenu()
+              if (id === 'pin') { togglePinned(row.id); return }
+              if (id === 'unread') { if (unread) markRead(row.id); else markUnread(row.id); return }
+              if (id === 'rename') { rename(row); return }
+              if (id === 'fork') { fork(row.id); return }
+              if (id === 'reveal' && row.cwd !== undefined) { onReveal(row.cwd); return }
+              if (id === 'copy-path' && row.cwd !== undefined) { onCopy(row.cwd); return }
+              if (id === 'copy-dir' && paths?.dir != null) { onCopy(paths.dir); return }
+              if (id === 'copy-log' && paths?.log != null) { onCopy(paths.log); return }
+              if (id === 'copy-id') { onCopy(row.id); return }
               if (id === 'archive') archive(row.id)
             }}
             portal
-            closeOnPointerLeave
+            closeOnPointerLeave={menuAt === null}
+            {...(menuAt === null ? {} : { getAnchorRect: () => new DOMRect(menuAt.x, menuAt.y, 0, 0) })}
             anchor={(
               <button
                 type="button"
                 className="ya-icon-button"
                 aria-label={`${title} actions`}
-                onClick={(event) => { event.stopPropagation(); setMenuOpen(value => !value) }}
+                onClick={(event) => { event.stopPropagation(); onOpenMenu(row); setMenuOpenButton(value => !value) }}
               >
                 <IconEllipsisOutline16 />
               </button>
@@ -196,6 +252,7 @@ export function WorkspaceSidebar(props: SidebarProps) {
     wide, expandSidebar, useSessions, useSessionPendingInteraction, useWorkspaces, startSession,
     open, searchSessions, searchResultLimit, renameSession, forkSession, renameWorkspace,
     deleteWorkspace, archiveSession, createWorkspace, useDirectoryFlow, renderSlot, t,
+    resolveSessionPaths, revealInExplorer,
   } = props
   const sessions = useSessions(state => state)
   const workspaceState = useWorkspaces(state => state)
@@ -203,12 +260,35 @@ export function WorkspaceSidebar(props: SidebarProps) {
   const archived = workspaceState.archivedSessionIds
   const pendingInteractions: PendingInteractionMap = useSessionPendingInteraction(state => state)
   const directoryFlowAvailable = useDirectoryFlow(value => value)
+  // Browser-local pinned/unread flags (localStorage-backed stores).
+  const [pinnedOrder, setPinnedOrder] = useState<readonly SessionId[]>(() => getPinnedOrder())
+  const [unreadSet, setUnreadSet] = useState<ReadonlySet<SessionId>>(() => getUnread())
+  useEffect(() => subscribePinned(() => { setPinnedOrder(getPinnedOrder()) }), [])
+  useEffect(() => subscribeUnread(() => { setUnreadSet(getUnread()) }), [])
+  // Host-probed jsonl storage paths per session (undefined = not probed yet;
+  // double-null = probed, absent — sqlite deployments keep the menu rows disabled).
+  const pathsCache = useRef(new Map<SessionId, SessionPaths>())
+  const [, setPathsTick] = useState(0)
+  const prefetchPaths = (row: SessionRow): void => {
+    if (row.blank || pathsCache.current.has(row.id)) return
+    pathsCache.current.set(row.id, { dir: null, log: null })
+    void resolveSessionPaths({ sessionId: row.id, ...(row.cwd !== undefined ? { cwd: row.cwd } : {}) })
+      .then(result => {
+        pathsCache.current.set(row.id, result)
+        setPathsTick(tick => tick + 1)
+      })
+      .catch(() => { /* probe failure leaves the placeholder double-null */ })
+  }
   const allRows = useMemo(
     () => deriveRecent(sessions, workspaces, archived, pendingInteractions, Number.MAX_SAFE_INTEGER),
     [archived, pendingInteractions, sessions, workspaces],
   )
   // Full recency list; the block virtualizes instead of capping at five rows.
-  const recent = allRows
+  // Pinned rows lift to the front (browser-local ordering overlay).
+  const recent = useMemo(
+    () => applyPinned(allRows, pinnedOrder),
+    [allRows, pinnedOrder],
+  )
   const workspaceRows = useMemo(
     () => deriveWorkspaces(sessions, workspaces, archived),
     [archived, sessions, workspaces],
@@ -244,9 +324,19 @@ export function WorkspaceSidebar(props: SidebarProps) {
       : [],
     [archived, pendingInteractions, sessions, workspaces, selectedKey, now],
   )
-  const levelRows = selectedKey === UNGROUPED
-    ? deriveWorkspaceSessions(UNGROUPED, sessions, workspaces, archived, pendingInteractions)
-    : []
+  const levelPinned = useMemo(
+    () => extractPinnedGroups(levelGroups, pinnedOrder),
+    [levelGroups, pinnedOrder],
+  )
+  const levelRows = useMemo(
+    () => applyPinned(
+      selectedKey === UNGROUPED
+        ? deriveWorkspaceSessions(UNGROUPED, sessions, workspaces, archived, pendingInteractions)
+        : [],
+      pinnedOrder,
+    ),
+    [archived, pendingInteractions, sessions, workspaces, selectedKey, pinnedOrder],
+  )
   const levelEmpty = selectedKey === UNGROUPED ? levelRows.length === 0 : levelGroups.every(g => g.rows.length === 0)
 
   const [query, setQuery] = useState('')
@@ -428,6 +518,10 @@ export function WorkspaceSidebar(props: SidebarProps) {
   }
   const toggleActionMode = () => { setActionMode(actionMode === 'archive' ? 'delete' : 'archive') }
   const fork = (id: SessionId) => { forkSession(id) }
+  // Opening a session is reading it: clear the local unread mark first.
+  const openRow = (id: SessionId) => { markRead(id); open(id) }
+  const reveal = (cwd: string) => { void revealInExplorer(cwd) }
+  const copy = (text: string) => { void writeClipboard(text) }
 
   const sessionItem = (row: SessionRow, context = false) => (
     <SessionItem
@@ -435,13 +529,19 @@ export function WorkspaceSidebar(props: SidebarProps) {
       row={row}
       current={sessions.current}
       now={now}
-      open={open}
+      open={openRow}
       rename={beginSessionRename}
       fork={fork}
       archive={archive}
       t={t}
       context={context}
       actionMode={actionMode}
+      pinned={pinnedOrder.includes(row.id)}
+      unread={unreadSet.has(row.id)}
+      paths={pathsCache.current.get(row.id)}
+      onOpenMenu={prefetchPaths}
+      onReveal={reveal}
+      onCopy={copy}
     />
   )
 
@@ -580,12 +680,20 @@ export function WorkspaceSidebar(props: SidebarProps) {
                     ])
                     : selectedKey === UNGROUPED
                       ? levelRows.map(row => sessionItem(row, false))
-                      : levelGroups.flatMap(group => [
-                        <div key={`group-${group.dateKey}`} className="ya-date-group-label" role="separator">
-                          {dateGroupLabel(group, now, t)}
-                        </div>,
-                        ...group.rows.map(row => sessionItem(row, false)),
-                      ])}
+                      : [
+                        ...(levelPinned.pinned.length > 0
+                          ? [<div key="group-pinned" className="ya-date-group-label" role="separator">
+                            {t('pinnedGroup')}
+                          </div>]
+                          : []),
+                        ...levelPinned.pinned.map(row => sessionItem(row, false)),
+                        ...levelPinned.groups.flatMap(group => [
+                          <div key={`group-${group.dateKey}`} className="ya-date-group-label" role="separator">
+                            {dateGroupLabel(group, now, t)}
+                          </div>,
+                          ...group.rows.map(row => sessionItem(row, false)),
+                        ]),
+                      ]}
                   {selectedKey === null && workspaceRows.length === 0 && <div className="ya-empty">{t('noWorkspaces')}</div>}
                   {selectedKey !== null && levelEmpty && <div className="ya-empty">{t('noSessions')}</div>}
                 </div>
