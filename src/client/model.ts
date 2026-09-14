@@ -35,6 +35,8 @@ export interface SessionRow {
   updatedAt: number
   workspaceKey: WorkspaceId | typeof UNGROUPED
   workspaceTitle: string
+  /** Session working directory; feeds the context menu's path actions. */
+  cwd?: string
 }
 
 /** One date-bucketed group. Empty `dateKey` is the undated trailing bucket. */
@@ -87,6 +89,7 @@ function rowOf(
     updatedAt: summary.updatedAt,
     workspaceKey,
     workspaceTitle,
+    ...(summary.cwd !== undefined ? { cwd: summary.cwd } : {}),
   }
 }
 
@@ -126,6 +129,49 @@ export function deriveRecent(
       const workspace = owners.get(summary.id)
       return rowOf(summary, workspace?.workspaceId ?? UNGROUPED, workspace?.title ?? 'Ungrouped', pending)
     })
+}
+
+/** Lift pinned rows (in pinned order) to the front; the rest keep their order. */
+export function applyPinned(
+  rows: readonly SessionRow[],
+  pinnedOrder: readonly SessionId[],
+): SessionRow[] {
+  if (pinnedOrder.length === 0) return [...rows]
+  const byId = new Map(rows.map(row => [row.id, row]))
+  const pinned: SessionRow[] = []
+  for (const id of pinnedOrder) {
+    const row = byId.get(id)
+    if (row === undefined) continue
+    byId.delete(id)
+    pinned.push(row)
+  }
+  return [...pinned, ...byId.values()]
+}
+
+/** Split date-grouped rows into a leading pinned list (pinned order) and the remaining groups (emptied groups dropped). */
+export function extractPinnedGroups(
+  groups: readonly SessionDateGroup[],
+  pinnedOrder: readonly SessionId[],
+): { pinned: SessionRow[]; groups: SessionDateGroup[] } {
+  if (pinnedOrder.length === 0) {
+    return { pinned: [], groups: groups.map(group => ({ ...group, rows: [...group.rows] })) }
+  }
+  const pinnedSet = new Set(pinnedOrder)
+  const pinnedRows = new Map<SessionId, SessionRow>()
+  const remaining: SessionDateGroup[] = []
+  for (const group of groups) {
+    const kept = group.rows.filter(row => {
+      if (!pinnedSet.has(row.id)) return true
+      pinnedRows.set(row.id, row)
+      return false
+    })
+    if (kept.length > 0) remaining.push({ ...group, rows: kept })
+  }
+  const pinned = pinnedOrder.flatMap(id => {
+    const row = pinnedRows.get(id)
+    return row === undefined ? [] : [row]
+  })
+  return { pinned, groups: remaining }
 }
 
 /** Fixed occupied height of one recent-sessions row: 33px two-line row + 2px vertical margins. */

@@ -3,8 +3,9 @@ import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-sess
 import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
-  deriveRecent, deriveWorkspaceGroups, deriveWorkspaceSessionGroups, deriveWorkspaceSessions,
-  deriveWorkspaces, localMatches, RECENT_ROW_STRIDE, UNGROUPED, virtualWindow, workspaceKeyForSession,
+  applyPinned, deriveRecent, deriveWorkspaceGroups, deriveWorkspaceSessionGroups, deriveWorkspaceSessions,
+  deriveWorkspaces, extractPinnedGroups, localMatches, RECENT_ROW_STRIDE, UNGROUPED, virtualWindow,
+  workspaceKeyForSession, type SessionRow,
 } from '../src/client/model.ts'
 
 const sid = (value: string) => value as SessionId
@@ -348,5 +349,68 @@ describe('deriveWorkspaceSessionGroups', () => {
     // Unknown kinds stay invisible until their domain ships a renderer mapping.
     expect(result.find(row => row.id === sid('four'))?.pendingInteraction).toBeUndefined()
     expect(result.find(row => row.id === sid('a-old'))?.pendingInteraction).toBeUndefined()
+  })
+
+  it('carries cwd onto derived rows for the path actions', () => {
+    const rows = [session('a-new', 9, { cwd: 'D:/proj/a' }), session('stray', 7)]
+    const result = deriveRecent(list(rows), workspaces, [], NO_PENDING)
+    expect(result.find(row => row.id === sid('a-new'))?.cwd).toBe('D:/proj/a')
+    expect(result.find(row => row.id === sid('stray'))?.cwd).toBeUndefined()
+  })
+})
+
+function rowOf(id: string, updatedAt = 1): SessionRow {
+  return {
+    id: sid(id),
+    title: id,
+    blank: false,
+    running: false,
+    completed: false,
+    updatedAt,
+    workspaceKey: UNGROUPED,
+    workspaceTitle: 'Ungrouped',
+  }
+}
+
+describe('applyPinned', () => {
+  it('lifts pinned rows to the front in pinned order and keeps the rest stable', () => {
+    const rows = [rowOf('s1'), rowOf('s2'), rowOf('s3'), rowOf('s4')]
+    expect(applyPinned(rows, [sid('s3'), sid('s1')]).map(r => r.id)).toEqual([
+      sid('s3'), sid('s1'), sid('s2'), sid('s4'),
+    ])
+  })
+
+  it('returns the input order when nothing is pinned', () => {
+    const rows = [rowOf('s1'), rowOf('s2')]
+    expect(applyPinned(rows, []).map(r => r.id)).toEqual([sid('s1'), sid('s2')])
+  })
+
+  it('ignores pinned ids absent from rows', () => {
+    const rows = [rowOf('s1')]
+    expect(applyPinned(rows, [sid('gone'), sid('s1')]).map(r => r.id)).toEqual([sid('s1')])
+  })
+})
+
+describe('extractPinnedGroups', () => {
+  it('pulls pinned rows out of date groups into a leading pinned list and drops emptied groups', () => {
+    const groups = [
+      { dateKey: '2026-09-14', dayOffset: 0, rows: [rowOf('s1'), rowOf('s2')] },
+      { dateKey: '2026-09-13', dayOffset: 1, rows: [rowOf('s3')] },
+    ]
+    const result = extractPinnedGroups(groups, [sid('s3'), sid('s1')])
+    expect(result.pinned.map(r => r.id)).toEqual([sid('s3'), sid('s1')])
+    expect(result.groups).toEqual([{ dateKey: '2026-09-14', dayOffset: 0, rows: [rowOf('s2')] }])
+  })
+
+  it('returns groups unchanged when no row is pinned', () => {
+    const groups = [{ dateKey: '2026-09-14', dayOffset: 0, rows: [rowOf('s1')] }]
+    expect(extractPinnedGroups(groups, [])).toEqual({ pinned: [], groups })
+  })
+
+  it('drops a group whose every row is pinned', () => {
+    const groups = [{ dateKey: '2026-09-13', dayOffset: 1, rows: [rowOf('s3')] }]
+    const result = extractPinnedGroups(groups, [sid('s3')])
+    expect(result.pinned.map(r => r.id)).toEqual([sid('s3')])
+    expect(result.groups).toEqual([])
   })
 })
