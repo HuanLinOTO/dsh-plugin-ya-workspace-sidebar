@@ -125,6 +125,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "link:D:/Projects/deepseek-harness/dsh/vendor/cordis",
+    "@deepseek-ai/dsh-home-paths": "link:D:/Projects/deepseek-harness/dsh/packages/util/home-paths",
     "@deepseek-ai/dsh-api-remotes": "link:D:/Projects/deepseek-harness/dsh/packages/api/remotes",
     "@deepseek-ai/dsh-api-session-controller": "link:D:/Projects/deepseek-harness/dsh/packages/api/session-controller",
     "@deepseek-ai/dsh-api-workspace-controller": "link:D:/Projects/deepseek-harness/dsh/packages/api/workspace-controller",

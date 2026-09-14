@@ -6,26 +6,26 @@
  * design, never synced, never sent to the Host. Storage failures fall back
  * to the in-memory value driving the current page.
  */
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
 
 const PINNED_KEY = 'ya-workspace-sidebar:pinned'
 const UNREAD_KEY = 'ya-workspace-sidebar:unread'
 
 /** Read one id array; malformed or absent entries resolve to empty. */
-function readIds(key: string): string[] {
+function readIds(key: string): SessionId[] {
   try {
     const raw = window.localStorage.getItem(key)
     if (raw === null) return []
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter((value): value is string => typeof value === 'string')
+    return parsed.filter((value): value is string => typeof value === 'string') as SessionId[]
   } catch {
     return []
   }
 }
 
 /** Persist one id array; silently ignores quota or privacy-mode failures. */
-function writeIds(key: string, ids: readonly string[]): void {
+function writeIds(key: string, ids: readonly SessionId[]): void {
   try {
     window.localStorage.setItem(key, JSON.stringify(ids))
   } catch {
@@ -33,14 +33,14 @@ function writeIds(key: string, ids: readonly string[]): void {
   }
 }
 
-let pinnedOrder: string[] = readIds(PINNED_KEY)
+let pinnedOrder: SessionId[] = readIds(PINNED_KEY)
 const pinnedListeners = new Set<() => void>()
 
-let unreadIds: string[] = readIds(UNREAD_KEY)
+let unreadIds: SessionId[] = readIds(UNREAD_KEY)
 const unreadListeners = new Set<() => void>()
 
 /** Current pinned order (newest pin first). */
-export function getPinnedOrder(): readonly string[] {
+export function getPinnedOrder(): readonly SessionId[] {
   return pinnedOrder
 }
 

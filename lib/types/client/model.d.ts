@@ -23,6 +23,8 @@ export interface SessionRow {
     updatedAt: number;
     workspaceKey: WorkspaceId | typeof UNGROUPED;
     workspaceTitle: string;
+    /** Session working directory; feeds the context menu's path actions. */
+    cwd?: string;
 }
 /** One date-bucketed group. Empty `dateKey` is the undated trailing bucket. */
 export interface DateGroup<T> {
@@ -51,6 +53,13 @@ export interface WorkspaceRow {
 export declare function workspaceKeyForSession(sessionId: SessionId | undefined, workspaces: readonly WorkspaceView[]): WorkspaceId | typeof UNGROUPED | null;
 /** Derive global recent sessions, newest first. */
 export declare function deriveRecent(list: SessionListState, workspaces: readonly WorkspaceView[], archivedSessionIds: readonly SessionId[], pending: PendingInteractionMap, limit?: number): SessionRow[];
+/** Lift pinned rows (in pinned order) to the front; the rest keep their order. */
+export declare function applyPinned(rows: readonly SessionRow[], pinnedOrder: readonly SessionId[]): SessionRow[];
+/** Split date-grouped rows into a leading pinned list (pinned order) and the remaining groups (emptied groups dropped). */
+export declare function extractPinnedGroups(groups: readonly SessionDateGroup[], pinnedOrder: readonly SessionId[]): {
+    pinned: SessionRow[];
+    groups: SessionDateGroup[];
+};
 /** Fixed occupied height of one recent-sessions row: 33px two-line row + 2px vertical margins. */
 export declare const RECENT_ROW_STRIDE = 35;
 /** Half-open render window `[start, end)` of a fixed-stride virtual list. */

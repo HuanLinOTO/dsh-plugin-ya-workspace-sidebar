@@ -17,4 +17,13 @@ describe('plugin shape', () => {
     expect(patch).toContain('disabled: true')
     expect(patch).toContain("name: '@huanlin/dsh-plugin-ya-workspace-sidebar'")
   })
+
+  it('keeps top-level inject empty so the title-cache fix works without a webServer', async () => {
+    // The routes mount through the runtime ctx.inject(['webServer'], ...) inside
+    // apply; a top-level declaration would park the whole plugin (including the
+    // title-cache listener) in CLI profiles that never provide the service.
+    expect(plugin.inject).toBeUndefined()
+    const source = readFileSync(fileURLToPath(new URL('../src/index.ts', import.meta.url)), 'utf8')
+    expect(source).toContain("ctx.inject(['webServer']")
+  })
 })
