@@ -53,6 +53,16 @@ export declare const zh: {
     yesterday: string;
     date: string;
     dateYear: string;
+    pin: string;
+    unpin: string;
+    pinnedGroup: string;
+    markUnread: string;
+    markRead: string;
+    revealInExplorer: string;
+    copyPath: string;
+    copySessionDir: string;
+    copyLogPath: string;
+    copySessionId: string;
 };
 export type YaWorkspaceKey = keyof typeof zh;
 export declare const en: {
@@ -109,5 +119,15 @@ export declare const en: {
     yesterday: string;
     date: string;
     dateYear: string;
+    pin: string;
+    unpin: string;
+    pinnedGroup: string;
+    markUnread: string;
+    markRead: string;
+    revealInExplorer: string;
+    copyPath: string;
+    copySessionDir: string;
+    copyLogPath: string;
+    copySessionId: string;
 };
 export declare const NS = "ya-workspace-sidebar";

@@ -41,6 +41,13 @@ export interface DirectoryInjected {
         directoryFlow: HostObservable<boolean>;
     };
 }
+/** Host-probed jsonl storage layout of one session (null = absent/unavailable). */
+export interface SessionPaths {
+    /** Session storage directory, or null on sqlite-backed/unflushed deployments. */
+    dir: string | null;
+    /** Highest-generation log file inside the directory, or null when none exists. */
+    log: string | null;
+}
 /** Browser-private Host operations. */
 export type SidebarInjected = DirectoryInjected & {
     startSession: (workspaceId?: WorkspaceId) => void;
@@ -59,6 +66,11 @@ export type SidebarInjected = DirectoryInjected & {
     createWorkspace: (input: {
         path: string;
     }) => Promise<WorkspaceView>;
+    resolveSessionPaths: (input: {
+        sessionId: SessionId;
+        cwd?: string;
+    }) => Promise<SessionPaths>;
+    revealInExplorer: (cwd: string) => Promise<void>;
 };
 /** Full sidebar component props. */
 export type SidebarProps = PropsRuntime<'sidebar.workspaces'> & PropsRenderSlots<'sidebar.workspaces.directoryFlow'> & Omit<SidebarInjected, 'hooks'> & {
