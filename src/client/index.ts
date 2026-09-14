@@ -11,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the SlotRegistry service merge (ctx.slots).
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
-import type { PickerInjected, SidebarInjected } from './contract.ts'
+import type { PickerInjected, SessionPaths, SidebarInjected } from './contract.ts'
 import { dicts } from './dictionaries.ts'
 import { en, NS, zh } from './locales.ts'
 import { YaWorkspaceNavigation } from './navigation.ts'
@@ -104,6 +104,31 @@ export function apply(ctx: Context): void {
       await ctx.workspaces.insertSessionBefore(workspaceId, sessionId, beforeSessionId)
     },
     createWorkspace,
+    resolveSessionPaths: async input => {
+      try {
+        const response = await fetch('/ya-workspace-sidebar/paths', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(input),
+        })
+        if (!response.ok) return { dir: null, log: null }
+        return await response.json() as SessionPaths
+      } catch {
+        // Route unavailable (older host half, offline): both actions stay disabled.
+        return { dir: null, log: null }
+      }
+    },
+    revealInExplorer: async cwd => {
+      try {
+        await fetch('/ya-workspace-sidebar/reveal', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ path: cwd }),
+        })
+      } catch (reason) {
+        console.warn('reveal request rejected:', reason)
+      }
+    },
     hooks: { directoryFlow: sidebarFlow },
   })
   const pickerInjected = (): PickerInjected => ({
