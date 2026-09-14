@@ -90,15 +90,18 @@ export function apply(ctx: Context): void {
   // Session-path actions for the sidebar's context menu. Mounted through the
   // runtime inject so the title-cache listener above keeps working in
   // deployments without a webServer (CLI profiles); the routes themselves
-  // only exist under `dsh web`.
-  ctx.inject(['webServer'], () => {
+  // only exist under `dsh web`. The service rides the CALLBACK's scoped ctx —
+  // the outer plugin ctx has no webServer property (the inject declaration
+  // belongs to the inner fiber, not this one).
+  ctx.inject(['webServer'], (wctx) => {
+    const webServer = (wctx as unknown as { webServer: WebServerFace }).webServer
     const disposeRoutes = [
-      (ctx as unknown as { webServer: WebServerFace }).webServer.register({
+      webServer.register({
         kind: 'exact',
         path: '/ya-workspace-sidebar/paths',
         handler: pathsRoute,
       }),
-      (ctx as unknown as { webServer: WebServerFace }).webServer.register({
+      webServer.register({
         kind: 'exact',
         path: '/ya-workspace-sidebar/reveal',
         handler: revealRoute,
