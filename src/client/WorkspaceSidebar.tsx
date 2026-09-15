@@ -187,18 +187,33 @@ function SessionItem({
   )
 }
 
-function WorkspaceItem({ row, enter, create, rename, remove, now, t }: {
+function WorkspaceItem({ row, enter, create, reveal, copy, rename, remove, now, t }: {
   row: WorkspaceRow
   enter: () => void
   create: () => void
+  reveal: (path: string) => void
+  copy: (text: string) => void
   rename: () => void
   remove: () => void
   now: number
   t: SidebarProps['t']
 }) {
-  const [menuOpen, setMenuOpen] = useState(false)
+  // Cursor-anchored context menu; mounted only while open so closed rows carry
+  // zero chrome and the freed right edge stays clear for the path line.
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  const hasPath = row.path !== undefined
   return (
-    <div className={`ya-row ya-workspace-row${menuOpen ? ' ya-menu-open' : ''}`} role="treeitem" onClick={enter} title={row.path}>
+    <div
+      className={`ya-row ya-workspace-row${menuAt !== null ? ' ya-menu-open' : ''}`}
+      role="treeitem"
+      onClick={enter}
+      title={row.path}
+      onContextMenu={(event) => {
+        if (!row.real) return
+        event.preventDefault()
+        setMenuAt({ x: event.clientX, y: event.clientY })
+      }}
+    >
       <span className="ya-status-slot"><IconFolderClose16 /></span>
       <span className="ya-row-main">
         <span className="ya-row-line">
@@ -209,32 +224,33 @@ function WorkspaceItem({ row, enter, create, rename, remove, now, t }: {
         </span>
         {row.path !== undefined && <span className="ya-workspace-path">{row.path}</span>}
       </span>
-      <span className="ya-row-actions">
-        {row.real && (
-          <Menu
-            open={menuOpen}
-            onClose={() => { setMenuOpen(false) }}
-            items={[
-              { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
-              { id: 'delete', label: t('deleteWorkspace'), icon: <IconTrashOutline16 />, danger: true },
-            ]}
-            onSelect={(id) => { setMenuOpen(false); if (id === 'rename') rename(); if (id === 'delete') remove() }}
-            portal
-            closeOnPointerLeave
-            anchor={(
-              <button type="button" className="ya-icon-button" onClick={(event) => { event.stopPropagation(); setMenuOpen(value => !value) }}>
-                <IconEllipsisOutline16 />
-              </button>
-            )}
-          />
-        )}
-        {row.real && (
-          <button type="button" className="ya-icon-button" onClick={(event) => { event.stopPropagation(); create() }}>
-            <IconPlusOutline16 />
-          </button>
-        )}
-      </span>
       <IconChevronRightOutline14 />
+      {row.real && menuAt !== null && (
+        <Menu
+          open
+          onClose={() => { setMenuAt(null) }}
+          items={[
+            { id: 'create', label: t('newSession'), icon: <IconPlusOutline16 /> },
+            { type: 'separator', id: 'sep-ws-paths' },
+            { id: 'reveal', label: t('revealInExplorer'), icon: <IconFolderOpenOutline16 />, disabled: !hasPath },
+            { id: 'copy-path', label: t('copyPath'), icon: <IconCopyOutline16 />, disabled: !hasPath },
+            { type: 'separator', id: 'sep-ws-manage' },
+            { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
+            { id: 'delete', label: t('deleteWorkspace'), icon: <IconTrashOutline16 />, danger: true },
+          ]}
+          onSelect={(id) => {
+            setMenuAt(null)
+            if (id === 'create') create()
+            if (id === 'reveal' && row.path !== undefined) { reveal(row.path); return }
+            if (id === 'copy-path' && row.path !== undefined) { copy(row.path); return }
+            if (id === 'rename') rename()
+            if (id === 'delete') remove()
+          }}
+          portal
+          getAnchorRect={() => new DOMRect(menuAt.x, menuAt.y, 0, 0)}
+          anchor={<span aria-hidden="true" />}
+        />
+      )}
     </div>
   )
 }
@@ -671,6 +687,8 @@ export function WorkspaceSidebar(props: SidebarProps) {
                           row={row}
                           enter={() => { setDirection('forward'); setSelectedKey(row.key) }}
                           create={() => { if (row.key !== UNGROUPED) startSession(row.key) }}
+                          reveal={reveal}
+                          copy={copy}
                           rename={() => { beginWorkspaceRename(row) }}
                           remove={() => { setDeleteTarget(row); setRenameError(null) }}
                           now={now}

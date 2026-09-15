@@ -39,14 +39,14 @@ button.ya-crumb:hover { background:var(--dsw-alias-interactive-bg-hover); color:
 .ya-workspace-row { min-height:40px; }
 .ya-row-main { flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; }
 .ya-row-line { display:flex; align-items:center; min-width:0; gap:6px; }
-.ya-row-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; line-height:18px; }
+.ya-row-title { flex:1; min-width:0; overflow:hidden; white-space:nowrap; font-size:13px; line-height:18px; -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent 100%); mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent 100%); }
 .ya-row-meta { flex:none; color:var(--dsw-alias-label-tertiary); font-size:11px; white-space:nowrap; }
 .ya-workspace-path { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--dsw-alias-label-tertiary); font-size:11px; line-height:15px; }
 .ya-row-actions { flex:none; display:flex; align-items:center; gap:2px; opacity:0; pointer-events:none; transition:opacity 120ms ease-out; }
 .ya-row:hover .ya-row-actions, .ya-menu-open .ya-row-actions { opacity:1; pointer-events:auto; }
 .ya-status-slot { flex:none; width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; color:var(--dsw-alias-label-tertiary); }
 .ya-recent .ya-row { min-height:31px; }
-.ya-search-workspace { color:var(--dsw-alias-label-tertiary); font-size:11px; line-height:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ya-search-workspace { color:var(--dsw-alias-label-tertiary); font-size:11px; line-height:15px; overflow:hidden; white-space:nowrap; -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent 100%); mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent 100%); }
 .ya-empty, .ya-status { padding:18px 10px; color:var(--dsw-alias-label-tertiary); text-align:center; font-size:13px; }
 .ya-warning { color:var(--dsw-alias-status-warning); }
 .ya-rename-input { width:100%; height:38px; box-sizing:border-box; border:1px solid var(--dsw-alias-border-l2); border-radius:9px; padding:0 11px; background:transparent; color:var(--dsw-alias-label-primary); outline:none; }
