@@ -6,18 +6,29 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 /** Pending-interaction kinds surfaced as a row status dot. */
 export type PendingInteractionKind = 'approval' | 'plan-review' | 'question'
 
-/** Renderer-visible view of ui-session's pending-interaction snapshot entries. */
-export type PendingInteractionEntry = { readonly kind: string }
+/** Renderer-visible view of ui-session's unified Session status entries. */
+export type PendingInteractionEntry = {
+  readonly pendingInteraction?: { readonly kind: string }
+  /** dsh 0.1.7's ui-session status: an unread completion awaiting acknowledgement. */
+  readonly completionUnread?: boolean
+}
 
 /** Pending-interaction snapshot consumed by the derive functions. */
 export type PendingInteractionMap = ReadonlyMap<SessionId, PendingInteractionEntry>
+
+/**
+ * Session Controller list plus the selection the sidebar filters/highlights
+ * against. dsh 0.1.7-rc.1 moved the selection out of `SessionListState` into
+ * the `uiWorkspace` service; callers merge it back in for these projections.
+ */
+export type SessionListView = SessionListState & { current?: SessionId }
 
 /** Resolve the visible status-dot kind for one session, if any. */
 function pendingKindOf(
   pending: PendingInteractionMap,
   id: SessionId,
 ): PendingInteractionKind | undefined {
-  const kind = pending.get(id)?.kind
+  const kind = pending.get(id)?.pendingInteraction?.kind
   return kind === 'approval' || kind === 'plan-review' || kind === 'question' ? kind : undefined
 }
 
@@ -85,7 +96,7 @@ function rowOf(
     blank: summary.blank,
     running: summary.running,
     ...(pendingInteraction === undefined ? {} : { pendingInteraction }),
-    completed: summary.completed === true,
+    completed: pending.get(summary.id)?.completionUnread === true,
     updatedAt: summary.updatedAt,
     workspaceKey,
     workspaceTitle,
@@ -112,7 +123,7 @@ export function workspaceKeyForSession(
 
 /** Derive global recent sessions, newest first. */
 export function deriveRecent(
-  list: SessionListState,
+  list: SessionListView,
   workspaces: readonly WorkspaceView[],
   archivedSessionIds: readonly SessionId[],
   pending: PendingInteractionMap,
@@ -222,7 +233,7 @@ function lastUsedOf(timestamps: readonly number[], fallback?: string): number | 
 
 /** Derive first-level workspaces plus Ungrouped, newest session activity first. */
 export function deriveWorkspaces(
-  list: SessionListState,
+  list: SessionListView,
   workspaces: readonly WorkspaceView[],
   archivedSessionIds: readonly SessionId[],
 ): WorkspaceRow[] {
@@ -274,7 +285,7 @@ export function deriveWorkspaces(
 /** Derive the selected workspace's sessions in its canonical order. */
 export function deriveWorkspaceSessions(
   key: WorkspaceId | typeof UNGROUPED,
-  list: SessionListState,
+  list: SessionListView,
   workspaces: readonly WorkspaceView[],
   archivedSessionIds: readonly SessionId[],
   pending: PendingInteractionMap,
@@ -354,7 +365,7 @@ function groupByLocalDate<T>(
  */
 export function deriveWorkspaceSessionGroups(
   key: WorkspaceId | typeof UNGROUPED,
-  list: SessionListState,
+  list: SessionListView,
   workspaces: readonly WorkspaceView[],
   archivedSessionIds: readonly SessionId[],
   pending: PendingInteractionMap,

@@ -1,10 +1,10 @@
 /** Two-level workspace/session browser with a persistent global recent block. */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import {
-  Button, IconArchiveOutline20, IconBranchOutline16, IconChevronRightOutline14,
-  IconClockOutline16, IconCloseFill14, IconCopyOutline16, IconEditOutline16,
-  IconEllipsisOutline16, IconFolderClose16, IconFolderOpenOutline16, IconLinkOutline16,
-  IconPlusOutline16, IconProjectAddOutline16, IconSearchOutline16, IconTrashOutline16,
+  Button, IconArchiveOutlineRegular, IconBranchOutlineRegular, IconChevronRightOutlineMedium,
+  IconClockOutlineRegular, IconCloseFillMedium, IconCopyOutlineRegular, IconEditOutlineRegular,
+  IconEllipsisOutlineRegular, IconFolderCloseRegular, IconFolderOpenOutlineRegular, IconLinkOutlineRegular,
+  IconPlusOutlineRegular, IconProjectAddOutlineRegular, IconSearchOutlineRegular, IconTrashOutlineRegular,
   Menu, Modal, StateDot, writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -110,7 +110,7 @@ function SessionItem({
   const title = row.blank ? t('newSession') : row.title
   const isDelete = actionMode === 'delete'
   const actionLabel = isDelete ? t('deleteSession') : t('archive')
-  const actionIcon = isDelete ? <IconTrashOutline16 /> : <IconArchiveOutline20 size={16} />
+  const actionIcon = isDelete ? <IconTrashOutlineRegular /> : <IconArchiveOutlineRegular size={16} />
   const hasCwd = row.cwd !== undefined
   const pathsKnown = paths !== undefined
   return (
@@ -142,15 +142,15 @@ function SessionItem({
             onClose={closeMenu}
             items={[
               { id: 'pin', label: pinned ? t('unpin') : t('pin'), icon: <PinMark size={14} /> },
-              { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
-              { id: 'fork', label: t('fork'), icon: <IconBranchOutline16 /> },
-              { id: 'unread', label: unread ? t('markRead') : t('markUnread'), icon: <IconClockOutline16 /> },
+              { id: 'rename', label: t('rename'), icon: <IconEditOutlineRegular /> },
+              { id: 'fork', label: t('fork'), icon: <IconBranchOutlineRegular /> },
+              { id: 'unread', label: unread ? t('markRead') : t('markUnread'), icon: <IconClockOutlineRegular /> },
               { type: 'separator', id: 'sep-manage' },
-              { id: 'reveal', label: t('revealInExplorer'), icon: <IconFolderOpenOutline16 />, disabled: !hasCwd },
-              { id: 'copy-path', label: t('copyPath'), icon: <IconCopyOutline16 />, disabled: !hasCwd },
-              { id: 'copy-dir', label: t('copySessionDir'), icon: <IconCopyOutline16 />, disabled: !pathsKnown || paths?.dir == null },
-              { id: 'copy-log', label: t('copyLogPath'), icon: <IconCopyOutline16 />, disabled: !pathsKnown || paths?.log == null },
-              { id: 'copy-id', label: t('copySessionId'), icon: <IconLinkOutline16 /> },
+              { id: 'reveal', label: t('revealInExplorer'), icon: <IconFolderOpenOutlineRegular />, disabled: !hasCwd },
+              { id: 'copy-path', label: t('copyPath'), icon: <IconCopyOutlineRegular />, disabled: !hasCwd },
+              { id: 'copy-dir', label: t('copySessionDir'), icon: <IconCopyOutlineRegular />, disabled: !pathsKnown || paths?.dir == null },
+              { id: 'copy-log', label: t('copyLogPath'), icon: <IconCopyOutlineRegular />, disabled: !pathsKnown || paths?.log == null },
+              { id: 'copy-id', label: t('copySessionId'), icon: <IconLinkOutlineRegular /> },
               { type: 'separator', id: 'sep-archive' },
               { id: 'archive', label: actionLabel, icon: actionIcon, danger: isDelete },
             ]}
@@ -177,7 +177,7 @@ function SessionItem({
                 aria-label={`${title} actions`}
                 onClick={(event) => { event.stopPropagation(); onOpenMenu(row); setMenuOpenButton(value => !value) }}
               >
-                <IconEllipsisOutline16 />
+                <IconEllipsisOutlineRegular />
               </button>
             )}
           />
@@ -214,7 +214,7 @@ function WorkspaceItem({ row, enter, create, reveal, copy, rename, remove, now, 
         setMenuAt({ x: event.clientX, y: event.clientY })
       }}
     >
-      <span className="ya-status-slot"><IconFolderClose16 /></span>
+      <span className="ya-status-slot"><IconFolderCloseRegular /></span>
       <span className="ya-row-main">
         <span className="ya-row-line">
           <span className="ya-row-title">{row.real ? row.title : t('ungrouped')}</span>
@@ -224,19 +224,19 @@ function WorkspaceItem({ row, enter, create, reveal, copy, rename, remove, now, 
         </span>
         {row.path !== undefined && <span className="ya-workspace-path">{row.path}</span>}
       </span>
-      <IconChevronRightOutline14 />
+      <IconChevronRightOutlineMedium />
       {row.real && menuAt !== null && (
         <Menu
           open
           onClose={() => { setMenuAt(null) }}
           items={[
-            { id: 'create', label: t('newSession'), icon: <IconPlusOutline16 /> },
+            { id: 'create', label: t('newSession'), icon: <IconPlusOutlineRegular /> },
             { type: 'separator', id: 'sep-ws-paths' },
-            { id: 'reveal', label: t('revealInExplorer'), icon: <IconFolderOpenOutline16 />, disabled: !hasPath },
-            { id: 'copy-path', label: t('copyPath'), icon: <IconCopyOutline16 />, disabled: !hasPath },
+            { id: 'reveal', label: t('revealInExplorer'), icon: <IconFolderOpenOutlineRegular />, disabled: !hasPath },
+            { id: 'copy-path', label: t('copyPath'), icon: <IconCopyOutlineRegular />, disabled: !hasPath },
             { type: 'separator', id: 'sep-ws-manage' },
-            { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
-            { id: 'delete', label: t('deleteWorkspace'), icon: <IconTrashOutline16 />, danger: true },
+            { id: 'rename', label: t('rename'), icon: <IconEditOutlineRegular /> },
+            { id: 'delete', label: t('deleteWorkspace'), icon: <IconTrashOutlineRegular />, danger: true },
           ]}
           onSelect={(id) => {
             setMenuAt(null)
@@ -265,16 +265,21 @@ interface RemoteState {
 /** Fill `sidebar.workspaces` with the replacement browser. */
 export function WorkspaceSidebar(props: SidebarProps) {
   const {
-    wide, expandSidebar, useSessions, useSessionPendingInteraction, useWorkspaces, startSession,
+    wide, expandSidebar, useSessions, useSessionStatus, useCurrentSession, useWorkspaces, startSession,
     open, searchSessions, searchResultLimit, renameSession, forkSession, renameWorkspace,
     deleteWorkspace, archiveSession, createWorkspace, useDirectoryFlow, renderSlot, t,
     resolveSessionPaths, revealInExplorer,
   } = props
   const sessions = useSessions(state => state)
+  // dsh 0.1.7-rc.1: the selected Session moved out of SessionListState into the
+  // uiWorkspace service; merge it back for the pure projections.
+  const current = useCurrentSession(value => value)
+  const sessionsView = useMemo(() => ({ ...sessions, current }), [sessions, current])
   const workspaceState = useWorkspaces(state => state)
   const workspaces = workspaceState.items
   const archived = workspaceState.archivedSessionIds
-  const pendingInteractions: PendingInteractionMap = useSessionPendingInteraction(state => state)
+  // ui-session's unified status snapshot replaced the pending-interaction map.
+  const pendingInteractions: PendingInteractionMap = useSessionStatus(state => state)
   const directoryFlowAvailable = useDirectoryFlow(value => value)
   // Browser-local pinned/unread flags (localStorage-backed stores).
   const [pinnedOrder, setPinnedOrder] = useState<readonly SessionId[]>(() => getPinnedOrder())
@@ -296,8 +301,8 @@ export function WorkspaceSidebar(props: SidebarProps) {
       .catch(() => { /* probe failure leaves the placeholder double-null */ })
   }
   const allRows = useMemo(
-    () => deriveRecent(sessions, workspaces, archived, pendingInteractions, Number.MAX_SAFE_INTEGER),
-    [archived, pendingInteractions, sessions, workspaces],
+    () => deriveRecent(sessionsView, workspaces, archived, pendingInteractions, Number.MAX_SAFE_INTEGER),
+    [archived, pendingInteractions, sessionsView, workspaces],
   )
   // Full recency list; the block virtualizes instead of capping at five rows.
   // Pinned rows lift to the front (browser-local ordering overlay).
@@ -306,8 +311,8 @@ export function WorkspaceSidebar(props: SidebarProps) {
     [allRows, pinnedOrder],
   )
   const workspaceRows = useMemo(
-    () => deriveWorkspaces(sessions, workspaces, archived),
-    [archived, sessions, workspaces],
+    () => deriveWorkspaces(sessionsView, workspaces, archived),
+    [archived, sessionsView, workspaces],
   )
   const now = Date.now()
   const workspaceGroups = useMemo(
@@ -321,11 +326,11 @@ export function WorkspaceSidebar(props: SidebarProps) {
   const observedCurrent = useRef<SessionId | undefined>(undefined)
   const initialized = useRef(false)
   useEffect(() => {
-    if (initialized.current && observedCurrent.current === sessions.current) return
+    if (initialized.current && observedCurrent.current === current) return
     initialized.current = true
-    observedCurrent.current = sessions.current
-    if (sessions.current !== undefined) { setDirection('forward'); setSelectedKey(workspaceKeyForSession(sessions.current, workspaces)) }
-  }, [sessions.current, workspaces])
+    observedCurrent.current = current
+    if (current !== undefined) { setDirection('forward'); setSelectedKey(workspaceKeyForSession(current, workspaces)) }
+  }, [current, workspaces])
   useEffect(() => {
     if (selectedKey !== null && selectedKey !== UNGROUPED
       && !workspaces.some(workspace => workspace.workspaceId === selectedKey)) setSelectedKey(UNGROUPED)
@@ -336,9 +341,9 @@ export function WorkspaceSidebar(props: SidebarProps) {
   // Real workspace level renders date-bucketed groups; Ungrouped keeps the flat recency view.
   const levelGroups = useMemo(
     () => selectedKey !== null && selectedKey !== UNGROUPED
-      ? deriveWorkspaceSessionGroups(selectedKey, sessions, workspaces, archived, pendingInteractions, now)
+      ? deriveWorkspaceSessionGroups(selectedKey, sessionsView, workspaces, archived, pendingInteractions, now)
       : [],
-    [archived, pendingInteractions, sessions, workspaces, selectedKey, now],
+    [archived, pendingInteractions, sessionsView, workspaces, selectedKey, now],
   )
   const levelPinned = useMemo(
     () => extractPinnedGroups(levelGroups, pinnedOrder),
@@ -347,11 +352,11 @@ export function WorkspaceSidebar(props: SidebarProps) {
   const levelRows = useMemo(
     () => applyPinned(
       selectedKey === UNGROUPED
-        ? deriveWorkspaceSessions(UNGROUPED, sessions, workspaces, archived, pendingInteractions)
+        ? deriveWorkspaceSessions(UNGROUPED, sessionsView, workspaces, archived, pendingInteractions)
         : [],
       pinnedOrder,
     ),
-    [archived, pendingInteractions, sessions, workspaces, selectedKey, pinnedOrder],
+    [archived, pendingInteractions, sessionsView, workspaces, selectedKey, pinnedOrder],
   )
   const levelEmpty = selectedKey === UNGROUPED ? levelRows.length === 0 : levelGroups.every(g => g.rows.length === 0)
 
@@ -543,7 +548,7 @@ export function WorkspaceSidebar(props: SidebarProps) {
     <SessionItem
       key={row.id}
       row={row}
-      current={sessions.current}
+      current={current}
       now={now}
       open={openRow}
       rename={beginSessionRename}
@@ -573,11 +578,11 @@ export function WorkspaceSidebar(props: SidebarProps) {
           title={actionMode === 'delete' ? t('deleteMode') : t('archiveMode')}
           onClick={(event) => { event.stopPropagation(); toggleActionMode() }}
         >
-          {actionMode === 'delete' ? <IconTrashOutline16 size={wide ? 16 : 18} /> : <IconArchiveOutline20 size={wide ? 16 : 18} />}
+          {actionMode === 'delete' ? <IconTrashOutlineRegular size={wide ? 16 : 18} /> : <IconArchiveOutlineRegular size={wide ? 16 : 18} />}
         </button>
         {directoryFlowAvailable && (
           <button ref={pickerAnchor} type="button" className="ya-icon-button" aria-label={t('addWorkspace')} onClick={() => { setPickerOpen(value => !value) }}>
-            <IconProjectAddOutline16 size={wide ? 16 : 18} />
+            <IconProjectAddOutlineRegular size={wide ? 16 : 18} />
           </button>
         )}
         <WorkspacePickFlow
@@ -596,9 +601,9 @@ export function WorkspaceSidebar(props: SidebarProps) {
       </div>
 
       <div className="ya-search" onClick={() => { if (!wide) expandSidebar() }}>
-        <button type="button" className="ya-search-icon" aria-label={t('search')}><IconSearchOutline16 size={wide ? 14 : 18} /></button>
+        <button type="button" className="ya-search-icon" aria-label={t('search')}><IconSearchOutlineRegular size={wide ? 14 : 18} /></button>
         {wide && <input className="ya-search-input" value={query} maxLength={SEARCH_MAX} placeholder={t('searchPlaceholder')} onChange={event => { setQuery(sanitized(event.target.value)) }} />}
-        {wide && query !== '' && <button type="button" className="ya-icon-button" aria-label={t('clearSearch')} onClick={() => { setQuery('') }}><IconCloseFill14 /></button>}
+        {wide && query !== '' && <button type="button" className="ya-icon-button" aria-label={t('clearSearch')} onClick={() => { setQuery('') }}><IconCloseFillMedium /></button>}
       </div>
 
       {wide && (
@@ -623,7 +628,7 @@ export function WorkspaceSidebar(props: SidebarProps) {
                       aria-expanded={!recentCollapsed}
                       onClick={(event) => { event.stopPropagation(); setRecentCollapsed(value => !value) }}
                     >
-                      <IconChevronRightOutline14 />
+                      <IconChevronRightOutlineMedium />
                     </button>
                   )}
                 </div>
@@ -664,10 +669,10 @@ export function WorkspaceSidebar(props: SidebarProps) {
                 ) : (
                   <>
                     <button type="button" className="ya-crumb" onClick={() => { setDirection('backward'); setSelectedKey(null) }}>{t('workspaces')}</button>
-                    <IconChevronRightOutline14 />
+                    <IconChevronRightOutlineMedium />
                     <span className="ya-crumb">{selectedKey === UNGROUPED ? t('ungrouped') : selectedWorkspace?.title}</span>
                     {selectedKey !== UNGROUPED && (
-                      <button type="button" className="ya-icon-button" aria-label={t('newSession')} onClick={() => { startSession(selectedKey) }}><IconPlusOutline16 /></button>
+                      <button type="button" className="ya-icon-button" aria-label={t('newSession')} onClick={() => { startSession(selectedKey) }}><IconPlusOutlineRegular /></button>
                     )}
                   </>
                 )}

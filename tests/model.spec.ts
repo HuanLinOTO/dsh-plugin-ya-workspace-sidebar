@@ -334,10 +334,10 @@ describe('deriveWorkspaceSessionGroups', () => {
   })
 
   it('surfaces pending interactions from the ui-session snapshot as row status', () => {
-    const pending = new Map<SessionId, { readonly kind: string }>([
-      [sid('a-new'), { kind: 'approval' }],
-      [sid('stray'), { kind: 'plan-review' }],
-      [sid('four'), { kind: 'some-future-kind' }],
+    const pending = new Map<SessionId, { readonly pendingInteraction?: { readonly kind: string } }>([
+      [sid('a-new'), { pendingInteraction: { kind: 'approval' } }],
+      [sid('stray'), { pendingInteraction: { kind: 'plan-review' } }],
+      [sid('four'), { pendingInteraction: { kind: 'some-future-kind' } }],
     ])
     const rows = [
       session('a-old', 1), session('a-new', 9), session('b-one', 8),

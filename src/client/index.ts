@@ -11,6 +11,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the SlotRegistry service merge (ctx.slots).
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PickerInjected, SessionPaths, SidebarInjected } from './contract.ts'
 import { dicts } from './dictionaries.ts'
 import { en, NS, zh } from './locales.ts'
@@ -75,6 +76,13 @@ export function apply(ctx: Context): void {
     ctx, ctx.remote.directoryPicker, ctx.workspaces, ctx.sessions)
   ctx.slots.provideRoot({ hooks: { workspaces: ctx.workspaces.list } })
 
+  // The selected Session lives in the uiWorkspace stand-in since 0.1.7-rc.1;
+  // expose it to the browser through the injected hooks compartment.
+  const currentSession: HostObservable<SessionId | undefined> = {
+    getSnapshot: () => navigation.currentSessionId,
+    subscribe: listener => navigation.subscribeSelection(listener),
+  }
+
   const searchSessions: SidebarInjected['searchSessions'] = async (query, signal) => {
     const result = await ctx.sessions.search(query, signal)
     if (!result.ok) throw new Error(result.error.message)
@@ -129,7 +137,7 @@ export function apply(ctx: Context): void {
         console.warn('reveal request rejected:', reason)
       }
     },
-    hooks: { directoryFlow: sidebarFlow },
+    hooks: { directoryFlow: sidebarFlow, currentSession },
   })
   const pickerInjected = (): PickerInjected => ({
     createWorkspace,

@@ -71,10 +71,16 @@ export type SidebarInjected = DirectoryInjected & {
         cwd?: string;
     }) => Promise<SessionPaths>;
     revealInExplorer: (cwd: string) => Promise<void>;
+    /** Current main-view Session (dsh 0.1.7-rc.1: owned by the uiWorkspace service). */
+    hooks: {
+        currentSession: HostObservable<SessionId | undefined>;
+    };
 };
 /** Full sidebar component props. */
 export type SidebarProps = PropsRuntime<'sidebar.workspaces'> & PropsRenderSlots<'sidebar.workspaces.directoryFlow'> & Omit<SidebarInjected, 'hooks'> & {
     useDirectoryFlow: SnapshotSelectorHook<boolean>;
+} & {
+    useCurrentSession: SnapshotSelectorHook<SessionId | undefined>;
 } & PropsLocale<'ya-workspace-sidebar'>;
 /** Conversation hero picker operations. */
 export type PickerInjected = DirectoryInjected & {

@@ -2,7 +2,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Button, IconFolderClose16, IconPlusOutline16, Menu, Modal, type MenuEntry,
+  Button, IconFolderCloseRegular, IconPlusOutlineRegular, Menu, Modal, type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   WorkspaceId, WorkspaceSnapshot, WorkspaceView,
@@ -51,14 +51,14 @@ export function WorkspacePickFlow({
     setFlowOpen(true)
   }, [onClose])
   const addEntries: MenuEntry[] = flowAvailable
-    ? [{ id: ADD, label: t('addWorkspaceMenu'), icon: <IconPlusOutline16 size={16} />, disabled: flowOpen || busy }]
+    ? [{ id: ADD, label: t('addWorkspaceMenu'), icon: <IconPlusOutlineRegular size={16} />, disabled: flowOpen || busy }]
     : []
   const pinnedAdd = !addOnly && snapshot.items.length > 0
   const items: MenuEntry[] = pinnedAdd
     ? snapshot.items.map(workspace => ({
       id: workspace.workspaceId,
       label: workspace.title,
-      icon: <IconFolderClose16 size={16} />,
+      icon: <IconFolderCloseRegular size={16} />,
       disabled: flowOpen || busy,
     }))
     : addEntries
