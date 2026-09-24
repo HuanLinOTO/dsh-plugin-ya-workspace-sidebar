@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "YA Workspace Sidebar",
+    "description": "Replaces the DSH workspace sidebar: a global virtual-scrolled Recent Sessions list on top, a draggable separator, and a two-level Workspace → Session browser with breadcrumb navigation, local-date grouping, relative last-used times, pinning, unread dots, and right-click menus; add/rename/delete/fork/archive still use native host abilities."
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "@huanlin/dsh-plugin-ya-workspace-sidebar",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "publishConfig": {
     "access": "public"
   },
@@ -22,10 +22,12 @@
       "default": "./lib/client.js"
     },
     "./src/*": "./src/*",
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/",
+    "locale/",
     "cordis.patch.yml"
   ],
   "dsh": {
