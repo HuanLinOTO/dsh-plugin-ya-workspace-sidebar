@@ -52,7 +52,7 @@ export declare class YaWorkspaceNavigation extends Service implements UiWorkspac
     private reuseBlank;
     openSession(target: SessionTarget): void;
     openWorkspace(workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): Promise<void>;
-    forkSession(sessionId: SessionId): Promise<void>;
+    forkSession(sessionId: SessionId, onCreated?: (childId: SessionId) => void): Promise<SessionId>;
     startSession(workspaceId?: WorkspaceId): void;
     archiveSession(sessionId: SessionId, options?: {
         readonly stopActivity?: boolean;

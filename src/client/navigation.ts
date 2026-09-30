@@ -162,10 +162,12 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
     this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
   }
 
-  async forkSession(sessionId: SessionId): Promise<void> {
+  async forkSession(sessionId: SessionId, onCreated?: (childId: SessionId) => void): Promise<SessionId> {
     // 0.1.7-rc.1: fork does not change the selection; the child arrives through
     // the Host list and the caller navigates explicitly if it wants to.
-    await this.sessions.fork({ sessionId, increaseTitle: true })
+    // 0.2.0-rc.1: mirror upstream signature — return the child id and forward
+    // the optional onCreated callback (OTel analytics hook).
+    return this.sessions.fork({ sessionId, increaseTitle: true, ...onCreated === undefined ? {} : { onCreated } })
   }
 
   startSession(workspaceId?: WorkspaceId): void {
