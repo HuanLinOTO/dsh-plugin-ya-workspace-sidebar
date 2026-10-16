@@ -12,7 +12,7 @@ DSH Web 工作区侧栏替代插件。顶部以虚拟滚动展示全局最近会
 
 ## 运行
 
-插件采用 bundle 形式，`cordis.patch.yml` 会禁用官方 `ui-workspace` 并插入 `@huanlin/dsh-plugin-ya-workspace-sidebar`。DSH v0.1.2-alpha.1 起，官方 `ui-sidebar` / `ui-conversation` / `ui-agent-preset` 及目录选择器组合包会注入 `ctx.uiWorkspace` 服务，本插件 client entry 通过 `src/client/navigation.ts` 自供该服务的替身（含复用/新建会话导航、current/recent 回退、归档清理与启动自动选择策略），否则这些条目会永久 pending 导致 WebUI 启动死锁。安装：
+插件采用 bundle 形式，`cordis.patch.yml` 会禁用官方 `ui-workspace` 并插入 `@huanlin/dsh-plugin-ya-workspace-sidebar`。DSH v0.1.2-alpha.1 起，官方 `ui-sidebar` / `ui-conversation` / `ui-agent-preset` 及目录选择器组合包会注入 `ctx.uiWorkspace` 服务，本插件 client entry 通过 `src/client/navigation.ts` 自供该服务的替身（含复用/新建会话导航、current/recent 回退、归档清理与启动自动选择策略），否则这些条目会永久 pending 导致 WebUI 启动死锁。自 dsh `0.2.1-alpha.5` 起，替身同时透传官方服务面新增的参数：`startSession`/`connectWorkspace`/`openWorkspace` 的 `StartSessionOptions`（Agent 预设 `agentPreset` 与草稿初始化内容——`ui-agent-preset` 的预设启动即走该路径）、`forkSession` 的 `allowMigration`；无参数的「新建会话」按上游新语义直接创建新会话而不再复用挂载中的 blank；空 profile 启动时先引导默认工作区再自动选择。安装：
 
 ```powershell
 # 从 npm 安装（推荐）：
@@ -29,6 +29,7 @@ dsh plugin --profile web add "link:D:/Projects/deepseek-harness/ya-workspace-sid
 ```powershell
 pnpm install
 pnpm run typecheck
+pnpm run typecheck:tests
 pnpm test
 pnpm run build
 ```
@@ -39,6 +40,7 @@ pnpm run build
 
 ```powershell
 pnpm run typecheck
+pnpm run typecheck:tests
 pnpm test
 pnpm run build
 ```

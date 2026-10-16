@@ -22,7 +22,7 @@ describe('plugin shape', () => {
     // The routes mount through the runtime ctx.inject(['webServer'], ...) inside
     // apply; a top-level declaration would park the whole plugin (including the
     // title-cache listener) in CLI profiles that never provide the service.
-    expect(plugin.inject).toBeUndefined()
+    expect((plugin as { inject?: unknown }).inject).toBeUndefined()
     const source = readFileSync(fileURLToPath(new URL('../src/index.ts', import.meta.url)), 'utf8')
     expect(source).toContain("ctx.inject(['webServer']")
   })
@@ -37,7 +37,7 @@ describe('plugin shape', () => {
         return {}
       },
     }
-    plugin.apply(ctx as Parameters<typeof plugin.apply>[0])
+    plugin.apply(ctx as unknown as Parameters<typeof plugin.apply>[0])
     expect(injectCallbacks).toHaveLength(1)
     // The service rides the scoped callback ctx; reading it off the outer
     // plugin ctx (the original bug) throws here as undefined.register.

@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   __resetSessionFlagsForTest, getPinnedOrder, getUnread, isPinned, isUnread,
   markRead, markUnread, subscribePinned, subscribeUnread, togglePinned,
 } from '../src/client/session-flags.ts'
+
+const sid = (value: string) => value as SessionId
 
 describe('pinned session order', () => {
   let stored: Record<string, string> = {}
@@ -24,31 +27,31 @@ describe('pinned session order', () => {
   })
 
   it('starts empty and unshifts newly pinned ids', () => {
-    togglePinned('s1')
-    togglePinned('s2')
+    togglePinned(sid('s1'))
+    togglePinned(sid('s2'))
     expect(getPinnedOrder()).toEqual(['s2', 's1'])
-    expect(isPinned('s1')).toBe(true)
+    expect(isPinned(sid('s1'))).toBe(true)
     expect(stored['ya-workspace-sidebar:pinned']).toBe('["s2","s1"]')
   })
 
   it('toggling a pinned id removes it', () => {
-    togglePinned('s1')
-    togglePinned('s2')
-    togglePinned('s1')
+    togglePinned(sid('s1'))
+    togglePinned(sid('s2'))
+    togglePinned(sid('s1'))
     expect(getPinnedOrder()).toEqual(['s2'])
-    expect(isPinned('s1')).toBe(false)
+    expect(isPinned(sid('s1'))).toBe(false)
   })
 
   it('notifies subscribers on every membership change', () => {
     const listener = vi.fn()
     const unsubscribe = subscribePinned(listener)
-    togglePinned('s1')
+    togglePinned(sid('s1'))
     expect(listener).toHaveBeenCalledTimes(1)
-    togglePinned('s1')
-    togglePinned('s1')
+    togglePinned(sid('s1'))
+    togglePinned(sid('s1'))
     expect(listener).toHaveBeenCalledTimes(3)
     unsubscribe()
-    togglePinned('s2')
+    togglePinned(sid('s2'))
     expect(listener).toHaveBeenCalledTimes(3)
   })
 
@@ -61,8 +64,8 @@ describe('pinned session order', () => {
       },
     })
     __resetSessionFlagsForTest()
-    expect(() => togglePinned('s1')).not.toThrow()
-    expect(isPinned('s1')).toBe(true)
+    expect(() => togglePinned(sid('s1'))).not.toThrow()
+    expect(isPinned(sid('s1'))).toBe(true)
   })
 
   it('drops malformed stored JSON to empty', () => {
@@ -92,19 +95,19 @@ describe('unread session set', () => {
   })
 
   it('marks and clears unread ids, persisting the set', () => {
-    markUnread('s1')
-    expect(isUnread('s1')).toBe(true)
-    expect(getUnread().has('s1')).toBe(true)
+    markUnread(sid('s1'))
+    expect(isUnread(sid('s1'))).toBe(true)
+    expect(getUnread().has(sid('s1'))).toBe(true)
     expect(stored['ya-workspace-sidebar:unread']).toBe('["s1"]')
-    markRead('s1')
-    expect(isUnread('s1')).toBe(false)
+    markRead(sid('s1'))
+    expect(isUnread(sid('s1'))).toBe(false)
     expect(stored['ya-workspace-sidebar:unread']).toBe('[]')
   })
 
   it('markRead on a read id is a silent no-op', () => {
     const listener = vi.fn()
     const unsubscribe = subscribeUnread(listener)
-    markRead('s1')
+    markRead(sid('s1'))
     expect(listener).not.toHaveBeenCalled()
     unsubscribe()
   })
@@ -112,9 +115,9 @@ describe('unread session set', () => {
   it('notifies subscribers on membership changes only', () => {
     const listener = vi.fn()
     const unsubscribe = subscribeUnread(listener)
-    markUnread('s1')
-    markUnread('s1')
-    markRead('s1')
+    markUnread(sid('s1'))
+    markUnread(sid('s1'))
+    markRead(sid('s1'))
     expect(listener).toHaveBeenCalledTimes(2)
     unsubscribe()
   })

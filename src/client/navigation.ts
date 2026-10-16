@@ -15,10 +15,19 @@
  * into this service: a retained `mainReference` plus a persisted selection
  * store (`dsh.sessions.current`). This port mirrors the shipped
  * `UiWorkspaceService` selection mechanics.
+ *
+ * dsh 0.2.1-alpha.5 widened the service face: `startSession`/`connectWorkspace`/
+ * `openWorkspace` accept `StartSessionOptions` (an Agent preset plus draft
+ * initialization content — ui-agent-preset launches presets through
+ * `startSession(undefined, { agentPreset })`), `forkSession` forwards
+ * `allowMigration`, plain `startSession()` mints a fresh Session instead of
+ * reusing a mounted blank, connections coalesce per (Workspace, preset), a
+ * saved blank reopens under the preset its log recorded, and an empty profile
+ * bootstraps the default Workspace before auto-selection.
  */
 import { Service, type Context } from '@deepseek-ai/cordis'
 import type {
-  ISessions, SessionListState, SessionReference, SessionTarget,
+  ISessions, SessionBinding, SessionListState, SessionReference, SessionTarget,
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ClientRemote, DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
 import type {
@@ -30,15 +39,30 @@ import type { UiWorkspace } from '@deepseek-ai/dsh-client-ui-workspace/client'
 // Type-only: pulls the layout service merge (ctx.layout) used by navigation.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the ui-session Context merge and the `mainView` reference
-// source this service retains under.
+// source this service retains under, plus the `conversation` Context merge the
+// draft-initialization path reads (ctx.get('conversation')).
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type { DraftInitializationOptions } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+
+/** Content preparation and Agent preset for the Session a Workspace flow opens. */
+export interface StartSessionOptions extends DraftInitializationOptions {
+  /** Agent preset the Session runs; the Host default when omitted. */
+  readonly agentPreset?: string
+}
 
 /** One persisted selection: the current Session and its optional subagent address. */
 export interface SessionSelection {
   readonly sessionId?: SessionId
   readonly subagentAddress?: SessionTarget
+}
+
+/** The `SessionCreateError.code` of a creation failure, by stable code (never instanceof). */
+function createErrorCodeOf(error: unknown): string | undefined {
+  return error instanceof Error && error.name === 'SessionCreateError'
+    ? (error as { rpcError?: { code?: string } }).rpcError?.code
+    : undefined
 }
 
 /** Persisted selection store (the official `dsh.sessions.current` key). */
@@ -75,7 +99,11 @@ class SelectionStore implements HostObservable<SessionSelection> {
 
 /** Implements Workspace navigation and directory UI operations. */
 export class YaWorkspaceNavigation extends Service implements UiWorkspace {
-  private readonly connecting = new Map<WorkspaceId, Promise<SessionId>>()
+  /** The latest in-flight connection per Workspace; a request joins it only when both name the same preset. */
+  private readonly connecting = new Map<WorkspaceId, {
+    readonly agentPreset: string | undefined
+    readonly attempt: Promise<SessionId>
+  }>()
   private readonly lifetime = new AbortController()
   private readonly selection = new SelectionStore()
   private mainReference: SessionReference | undefined
@@ -109,39 +137,88 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
     return this.selection.subscribe(listener)
   }
 
-  async connectWorkspace(workspaceId: WorkspaceId): Promise<SessionId> {
+  connectWorkspace(workspaceId: WorkspaceId, options: Pick<StartSessionOptions, 'agentPreset'> = {}): Promise<SessionId> {
+    return this.connectBlank(workspaceId, options)
+  }
+
+  /**
+   * @param reuse - preset for the reused or created blank; absent creates a fresh Session.
+   */
+  private async connectBlank(
+    workspaceId: WorkspaceId,
+    reuse: Pick<StartSessionOptions, 'agentPreset'> | undefined,
+  ): Promise<SessionId> {
     const workspace = this.workspaces.list.getSnapshot().items
       .find(item => item.workspaceId === workspaceId)
     if (workspace === undefined) {
       throw new Error(`ya-workspace-sidebar: unknown workspace "${workspaceId}"`)
     }
+    if (reuse === undefined) return this.sessions.create({ workspaceId })
     const inflight = this.connecting.get(workspaceId)
-    if (inflight !== undefined) return inflight
+    if (inflight !== undefined && inflight.agentPreset === reuse.agentPreset) return inflight.attempt
 
-    const attempt = this.reuseOrCreateBlank(workspace).finally(() => { this.connecting.delete(workspaceId) })
-    this.connecting.set(workspaceId, attempt)
+    const attempt = this.createInWorkspace(workspace, reuse).finally(() => {
+      if (this.connecting.get(workspaceId)?.attempt === attempt) this.connecting.delete(workspaceId)
+    })
+    this.connecting.set(workspaceId, { agentPreset: reuse.agentPreset, attempt })
     return attempt
   }
 
-  private reuseOrCreateBlank(workspace: WorkspaceView): Promise<SessionId> {
+  private createInWorkspace(
+    workspace: WorkspaceView,
+    options: Pick<StartSessionOptions, 'agentPreset'>,
+  ): Promise<SessionId> {
     const archived = this.workspaces.list.getSnapshot().archivedSessionIds
     const sessions = this.sessions.list.getSnapshot()
-    for (const id of sessions.ids) {
+    const blank = sessions.ids.find((id) => {
       const summary = sessions.byId[id]
-      if (summary === undefined || !summary.blank || summary.cwd !== workspace.path
-        || !workspace.sessionIds.includes(id) || archived.includes(id)) continue
-      return this.reuseBlank(workspace.workspaceId, id)
-    }
-    return this.sessions.create({ workspaceId: workspace.workspaceId })
+      return summary !== undefined && summary.blank && summary.cwd === workspace.path
+        && workspace.sessionIds.includes(id) && !archived.includes(id)
+    })
+    return this.createNamed({
+      workspaceId: workspace.workspaceId,
+      ...(blank === undefined ? {} : { sessionId: blank }),
+      ...(options.agentPreset === undefined ? {} : { agentPreset: options.agentPreset }),
+    })
   }
 
-  private async reuseBlank(workspaceId: WorkspaceId, sessionId: SessionId): Promise<SessionId> {
+  /**
+   * Create through the Host. A named blank the Host declined may still read as
+   * blank from stale cached list metadata, which hides it from the Session tree;
+   * its projections are reloaded so the row reflects its log.
+   */
+  private async createNamed(request: {
+    readonly workspaceId: WorkspaceId
+    readonly sessionId?: SessionId
+    readonly agentPreset?: string
+  }): Promise<SessionId> {
+    const sessionId = await this.sessions.create(request)
+    const named = request.sessionId
+    if (named !== undefined && named !== sessionId) {
+      void this.sessions.refreshProjections(named).catch((reason: unknown) => {
+        console.warn('ya-workspace-sidebar: declined blank Session projection reload failed:', reason)
+      })
+    }
+    return sessionId
+  }
+
+  /**
+   * Reopen a saved blank Session under the preset its log recorded, or under
+   * the Host default once that preset no longer activates. Listed values are
+   * cached hints that can lag the log after an unclean Host exit, so the
+   * Session's projections are reloaded before the preset is read.
+   */
+  private async restoreBlank(workspaceId: WorkspaceId, sessionId: SessionId): Promise<SessionId> {
+    await this.sessions.refreshProjections(sessionId)
+    const recorded = this.sessions.list.getSnapshot().byId[sessionId]?.projectionValues?.agentPreset
+    const request = { workspaceId, sessionId }
+    if (typeof recorded !== 'string') return this.createNamed(request)
     try {
-      return await this.sessions.create({ workspaceId, sessionId })
+      return await this.createNamed({ ...request, agentPreset: recorded })
     } catch (error) {
-      if (!(error instanceof Error) || error.name !== 'SessionCreateError') throw error
-      if ((error as { rpcError?: { code?: string } }).rpcError?.code !== 'session/writer-held') throw error
-      return this.sessions.create({ workspaceId })
+      const code = createErrorCodeOf(error)
+      if (code !== 'agent-preset/not-found' && code !== 'agent-preset/invalid') throw error
+      return this.createNamed(request)
     }
   }
 
@@ -149,11 +226,23 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
     this.replaceMain(target, this.lifetime.signal, 'reveal')
   }
 
-  async openWorkspace(workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): Promise<void> {
+  openWorkspace(
+    workspaceId: WorkspaceId,
+    beforeOpen?: (sessionId: SessionId) => void,
+    options: Pick<StartSessionOptions, 'agentPreset'> = {},
+  ): Promise<void> {
+    return this.openWorkspaceSession(workspaceId, beforeOpen, options)
+  }
+
+  private async openWorkspaceSession(
+    workspaceId: WorkspaceId,
+    beforeOpen: ((sessionId: SessionId) => void) | undefined,
+    reuse: Pick<StartSessionOptions, 'agentPreset'> | undefined,
+  ): Promise<void> {
     const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
     let sessionId: SessionId
     try {
-      sessionId = await this.connectWorkspace(workspaceId)
+      sessionId = await this.connectBlank(workspaceId, reuse)
     } catch (error) {
       if (!navigation.aborted) console.warn('ya-workspace-sidebar: workspace open failed:', error)
       throw error
@@ -162,15 +251,30 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
     this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
   }
 
-  async forkSession(sessionId: SessionId, onCreated?: (childId: SessionId) => void): Promise<SessionId> {
+  async forkSession(
+    sessionId: SessionId,
+    onCreated?: (childId: SessionId) => void,
+    options?: Pick<Parameters<ISessions['fork']>[0], 'allowMigration'>,
+  ): Promise<SessionId> {
     // 0.1.7-rc.1: fork does not change the selection; the child arrives through
     // the Host list and the caller navigates explicitly if it wants to.
     // 0.2.0-rc.1: mirror upstream signature — return the child id and forward
     // the optional onCreated callback (OTel analytics hook).
-    return this.sessions.fork({ sessionId, increaseTitle: true, ...onCreated === undefined ? {} : { onCreated } })
+    // 0.2.1-alpha.5: forward allowMigration so a migration-required source can
+    // stay unmigrated when the caller asks for that.
+    return this.sessions.fork({
+      sessionId,
+      increaseTitle: true,
+      ...onCreated === undefined ? {} : { onCreated },
+      ...options?.allowMigration === undefined ? {} : { allowMigration: options.allowMigration },
+    })
   }
 
-  startSession(workspaceId?: WorkspaceId): void {
+  startSession(workspaceId?: WorkspaceId, options?: StartSessionOptions): void {
+    const { agentPreset, ...draft } = options ?? {}
+    const draftOptions = options === undefined ? undefined : draft
+    const initializeDraft = draftOptions !== undefined
+      && (draftOptions.prompt !== undefined || draftOptions.clearPreviousDraft === true)
     const workspaces = this.workspaces.list.getSnapshot()
     const sessions = this.sessions.list.getSnapshot()
     const current = this.mainReference?.sessionId
@@ -182,13 +286,37 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
       : undefined
     const target = workspaceId ?? currentWorkspaceId ?? recent
     if (target === undefined) {
+      if (initializeDraft) {
+        console.warn('ya-workspace-sidebar: draft initialization requires a workspace')
+        return
+      }
       this.clearMain()
       return
     }
-    void this.openWorkspace(target).then(
-      () => {},
+    // Without options a New Session mints a fresh Session (the mounted blank
+    // stays reusable); with options the connection adopts a blank and runs the
+    // requested preset, and a draft initializes through the conversation
+    // service before navigation publishes the Session.
+    const opening = draftOptions === undefined
+      ? this.openWorkspaceSession(target, undefined, undefined)
+      : this.openWorkspace(target, initializeDraft ? (id) => {
+        const binding = this.sessions.binding(id)
+        if (binding === undefined) this.draftPreparationFailed()
+        this.prepareDraft(binding, draftOptions)
+      } : undefined, agentPreset === undefined ? {} : { agentPreset })
+    void opening.catch(
       (reason: unknown) => { console.warn('ya-workspace-sidebar: new session failed:', reason) },
     )
+  }
+
+  private prepareDraft(binding: SessionBinding, options: DraftInitializationOptions): void {
+    const conversation = this.ctx.get('conversation')
+    if (conversation === undefined) this.draftPreparationFailed()
+    if (conversation.input.requestDraftInitialization(binding, options) === 'blocked') this.draftPreparationFailed()
+  }
+
+  private draftPreparationFailed(): never {
+    throw new Error('ya-workspace-sidebar: draft initialization failed')
   }
 
   async archiveSession(sessionId: SessionId, options: { readonly stopActivity?: boolean } = {}): Promise<void> {
@@ -278,11 +406,25 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
     let sessionId: SessionId | undefined
     if (summary !== undefined && workspace !== undefined && summary.cwd === workspace.path
       && !workspaces.archivedSessionIds.includes(summary.id)) {
-      sessionId = await this.reuseBlank(workspace.workspaceId, summary.id)
+      sessionId = await this.restoreBlank(workspace.workspaceId, summary.id)
     }
-    const target = workspace?.workspaceId ?? recentWorkspace(workspaces.items, sessions.byId)
+    let target = workspace?.workspaceId ?? recentWorkspace(workspaces.items, sessions.byId)
+    if (target === undefined && workspaces.items.length === 0 && sessions.ids.length === 0) {
+      const prepared = await this.initializeDefaultWorkspace(navigation)
+      if (navigation.aborted) return
+      target = prepared?.workspaceId
+    }
     if (sessionId === undefined && target !== undefined) sessionId = await this.connectWorkspace(target)
     if (sessionId !== undefined && !navigation.aborted) this.replaceMain(sessionId, navigation, 'preserve')
+  }
+
+  private async initializeDefaultWorkspace(signal: AbortSignal): Promise<WorkspaceView | undefined> {
+    try {
+      return await this.workspaces.initializeDefault(signal)
+    } catch (reason: unknown) {
+      if (!signal.aborted) console.warn('ya-workspace-sidebar: default Workspace preparation failed:', reason)
+      return undefined
+    }
   }
 
   /** @returns true when an archived current selection was cleared. */
