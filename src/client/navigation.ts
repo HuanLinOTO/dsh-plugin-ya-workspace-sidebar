@@ -36,6 +36,8 @@ import type {
 // Type-only: the official service face this plugin replaces. The stand-in
 // satisfies the same members so every official consumer keeps compiling.
 import type { UiWorkspace } from '@deepseek-ai/dsh-client-ui-workspace/client'
+// Type-only: RemoteEndpoint/AccessEffect and the ctx.remoteAccess merge.
+import type { AccessEffect, RemoteEndpoint } from '@deepseek-ai/dsh-api-remote-access/client'
 // Type-only: pulls the layout service merge (ctx.layout) used by navigation.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the ui-session Context merge and the `mainView` reference
@@ -146,14 +148,13 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
    */
   private async connectBlank(
     workspaceId: WorkspaceId,
-    reuse: Pick<StartSessionOptions, 'agentPreset'> | undefined,
+    reuse: Pick<StartSessionOptions, 'agentPreset'>,
   ): Promise<SessionId> {
     const workspace = this.workspaces.list.getSnapshot().items
       .find(item => item.workspaceId === workspaceId)
     if (workspace === undefined) {
       throw new Error(`ya-workspace-sidebar: unknown workspace "${workspaceId}"`)
-    }
-    if (reuse === undefined) return this.sessions.create({ workspaceId })
+    }
     const inflight = this.connecting.get(workspaceId)
     if (inflight !== undefined && inflight.agentPreset === reuse.agentPreset) return inflight.attempt
 
@@ -172,8 +173,13 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
     const sessions = this.sessions.list.getSnapshot()
     const blank = sessions.ids.find((id) => {
       const summary = sessions.byId[id]
-      return summary !== undefined && summary.blank && summary.cwd === workspace.path
-        && workspace.sessionIds.includes(id) && !archived.includes(id)
+      if (summary === undefined || !summary.blank || summary.cwd !== workspace.path) return false
+      if (!workspace.sessionIds.includes(id) || archived.includes(id)) return false
+      // 0.2.2-rc.1: a requested preset skips blanks that list a different one;
+      // a blank listing nothing (or exactly this preset) stays reusable.
+      if (options.agentPreset === undefined) return true
+      const listed = summary.projectionValues?.agentPreset
+      return typeof listed !== 'string' || listed === options.agentPreset
     })
     return this.createNamed({
       workspaceId: workspace.workspaceId,
@@ -237,7 +243,7 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
   private async openWorkspaceSession(
     workspaceId: WorkspaceId,
     beforeOpen: ((sessionId: SessionId) => void) | undefined,
-    reuse: Pick<StartSessionOptions, 'agentPreset'> | undefined,
+    reuse: Pick<StartSessionOptions, 'agentPreset'>,
   ): Promise<void> {
     const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
     let sessionId: SessionId
@@ -274,7 +280,9 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
     const { agentPreset, ...draft } = options ?? {}
     const draftOptions = options === undefined ? undefined : draft
     const initializeDraft = draftOptions !== undefined
-      && (draftOptions.prompt !== undefined || draftOptions.clearPreviousDraft === true)
+      && (draftOptions.prompt !== undefined
+        || (draftOptions.whenDraftExists
+          ?? (draftOptions.clearPreviousDraft === true ? 'replace' : 'keep')) === 'replace')
     const workspaces = this.workspaces.list.getSnapshot()
     const sessions = this.sessions.list.getSnapshot()
     const current = this.mainReference?.sessionId
@@ -293,17 +301,15 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
       this.clearMain()
       return
     }
-    // Without options a New Session mints a fresh Session (the mounted blank
-    // stays reusable); with options the connection adopts a blank and runs the
-    // requested preset, and a draft initializes through the conversation
-    // service before navigation publishes the Session.
-    const opening = draftOptions === undefined
-      ? this.openWorkspaceSession(target, undefined, undefined)
-      : this.openWorkspace(target, initializeDraft ? (id) => {
-        const binding = this.sessions.binding(id)
-        if (binding === undefined) this.draftPreparationFailed()
-        this.prepareDraft(binding, draftOptions)
-      } : undefined, agentPreset === undefined ? {} : { agentPreset })
+    // 0.2.2-rc.1: a New Session adopts the first reusable blank in the
+    // workspace (a requested preset only narrows which blanks qualify), and a
+    // draft initializes through the conversation service before navigation
+    // publishes the Session.
+    const opening = this.openWorkspace(target, initializeDraft ? (id) => {
+      const binding = this.sessions.binding(id)
+      if (binding === undefined) this.draftPreparationFailed()
+      this.prepareDraft(binding, draftOptions)
+    } : undefined, agentPreset === undefined ? {} : { agentPreset })
     void opening.catch(
       (reason: unknown) => { console.warn('ya-workspace-sidebar: new session failed:', reason) },
     )
@@ -346,6 +352,18 @@ export class YaWorkspaceNavigation extends Service implements UiWorkspace {
     const result = await this.directoryPicker.list(path, signal)
     if (!result.ok) throw new Error(`directory browse failed: ${result.error.code}: ${result.error.message}`)
     return result.value
+  }
+
+  /**
+   * 0.2.2: forward the Workspace access guard to the remoteAccess service,
+   * exactly as the shipped ui-workspace controller does.
+   */
+  whenAccess(workspaceId: WorkspaceId, action: RemoteEndpoint, callback: () => AccessEffect): () => void {
+    const access = this.ctx.get('remoteAccess')
+    if (access === undefined) {
+      throw new Error('ya-workspace-sidebar: whenAccess requires the remoteAccess service')
+    }
+    return access.whenResourceAccess('workspace', workspaceId, action, callback)
   }
 
   async createDirectory(path: string, name: string): Promise<string> {

@@ -30,6 +30,7 @@ import type { ISessions, SessionTarget } from '@deepseek-ai/dsh-api-session-cont
 import type { ClientRemote, DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client';
 import type { IWorkspaces, WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client';
 import type { UiWorkspace } from '@deepseek-ai/dsh-client-ui-workspace/client';
+import type { AccessEffect, RemoteEndpoint } from '@deepseek-ai/dsh-api-remote-access/client';
 import type { DraftInitializationOptions } from '@deepseek-ai/dsh-client-ui-conversation/client';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 /** Content preparation and Agent preset for the Session a Workspace flow opens. */
@@ -97,6 +98,11 @@ export declare class YaWorkspaceNavigation extends Service implements UiWorkspac
     unpinSession(sessionId: SessionId): Promise<void>;
     pickDirectory(): Promise<string | null>;
     listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing>;
+    /**
+     * 0.2.2: forward the Workspace access guard to the remoteAccess service,
+     * exactly as the shipped ui-workspace controller does.
+     */
+    whenAccess(workspaceId: WorkspaceId, action: RemoteEndpoint, callback: () => AccessEffect): () => void;
     createDirectory(path: string, name: string): Promise<string>;
     private watchNavigation;
     private restoreSelection;

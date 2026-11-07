@@ -279,9 +279,9 @@ describe('uiWorkspace stand-in', () => {
       .rejects.toThrow('ya-workspace-sidebar: unknown workspace "ghost"')
   })
 
-  it('mints a fresh Session on plain startSession instead of reusing a mounted blank', async () => {
-    // dsh 0.2.1-alpha.5: explicit New Session no longer adopts a mounted blank;
-    // only option-carrying flows (preset launch, draft preparation) reuse one.
+  it('adopts the first reusable blank on a plain startSession', async () => {
+    // dsh 0.2.2-rc.1: New Session reuses the workspace's first unstarted,
+    // unarchived blank again (0.2.1-alpha.5 had minted a fresh one).
     const { navigation, sessions } = bench({
       workspaces: workspaceState([workspace('alpha', [sid('blank-a')])]),
       sessions: sessionState([summary('blank-a', { blank: true, cwd: '/w/alpha' })]),
@@ -290,7 +290,28 @@ describe('uiWorkspace stand-in', () => {
     sessions.create.mockClear()
     navigation.startSession(wid('alpha'))
     await vi.waitFor(() => {
-      expect(sessions.create).toHaveBeenCalledExactlyOnceWith({ workspaceId: wid('alpha') })
+      expect(sessions.create).toHaveBeenCalledExactlyOnceWith({
+        workspaceId: wid('alpha'), sessionId: sid('blank-a'),
+      })
+    })
+  })
+
+  it('skips a blank that lists a different agent preset', async () => {
+    // A preset launch must not take over another preset's draft.
+    const { navigation, sessions } = bench({
+      workspaces: workspaceState([workspace('alpha', [sid('blank-a'), sid('blank-b')])]),
+      sessions: sessionState([
+        summary('blank-a', { blank: true, cwd: '/w/alpha', projectionValues: { agentPreset: 'cordis' } }),
+        summary('blank-b', { blank: true, cwd: '/w/alpha', projectionValues: { agentPreset: 'ptc' } }),
+      ]),
+    })
+    await settle()
+    sessions.create.mockClear()
+    navigation.startSession(wid('alpha'), { clearPreviousDraft: false, agentPreset: 'ptc' })
+    await vi.waitFor(() => {
+      expect(sessions.create).toHaveBeenCalledExactlyOnceWith({
+        workspaceId: wid('alpha'), sessionId: sid('blank-b'), agentPreset: 'ptc',
+      })
     })
   })
 
