@@ -70,6 +70,8 @@ export type SidebarInjected = DirectoryInjected & {
         sessionId: SessionId;
         cwd?: string;
     }) => Promise<SessionPaths>;
+    /** Pull one session's projection block (title included) without opening it. */
+    refreshSessionProjections: (sessionId: SessionId) => Promise<void>;
     revealInExplorer: (cwd: string) => Promise<void>;
     /** Current main-view Session (dsh 0.1.7-rc.1: owned by the uiWorkspace service). */
     hooks: {

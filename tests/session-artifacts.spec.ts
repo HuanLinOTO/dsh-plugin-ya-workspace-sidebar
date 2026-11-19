@@ -36,10 +36,10 @@ describe('findSessionArtifacts', () => {
     const dirB = join(root, '--proj-B--', encodeSegment('s1'))
     await mkdir(dirA, { recursive: true })
     await mkdir(dirB, { recursive: true })
-    await writeFile(join(dirA, 'v2.jsonl'), '')
-    await writeFile(join(dirA, 'v3.jsonl.zstd'), '')
+    await writeFile(join(dirA, 'session.v2.jsonl'), '')
+    await writeFile(join(dirA, 'session.v3.jsonl.zstd'), '')
     await writeFile(join(dirA, 'notes.txt'), '')
-    await writeFile(join(dirB, 'v1.jsonl'), '')
+    await writeFile(join(dirB, 'session.v1.jsonl'), '')
     const later = new Date(Date.now() + 5000)
     await utimes(dirA, later, later)
   })
@@ -51,7 +51,7 @@ describe('findSessionArtifacts', () => {
   it('finds the newest project copy and its highest generation log', async () => {
     const result = await findSessionArtifacts(root, 's1', IO)
     expect(result.dir).toBe(join(root, '--proj-A--', encodeSegment('s1')))
-    expect(result.log).toBe(join(result.dir ?? '', 'v3.jsonl.zstd'))
+    expect(result.log).toBe(join(result.dir ?? '', 'session.v3.jsonl.zstd'))
   })
 
   it('returns double null when the session has no directory', async () => {

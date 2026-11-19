@@ -147,23 +147,27 @@ describe('sidebar projections', () => {
     expect(localMatches(rows, 'alpha').map(row => row.id)).toEqual([sid('a-new')])
   })
 
-  it('uses displayTitle for non-blank rows so cold sessions fall back to the cwd basename across restarts', () => {
-    // Cold session: no durable title in the projection cache → displayTitle
-    // falls back to the cwd basename (workspace name). The row surfaces it
-    // directly: stable across restarts, no host-cache dependency.
+  it('keeps only the durable title so cold rows never masquerade as the workspace folder name', () => {
+    // Cold session: no durable title yet → empty title. The renderer shows the
+    // localized "Untitled"; displayTitle's cwd-basename fallback would render
+    // every cold row as the workspace folder name (the reported bug).
     const cold = session('cold', 1, { displayTitle: 'Alpha' })
     // Warm session: durable title projected by the host.
     const warm = session('warm', 2, { title: 'Fix the parser bug', displayTitle: 'Fix the parser bug' })
+    // Whitespace-only durable titles also count as untitled.
+    const blankTitle = session('spaces', 4, { title: '   ', displayTitle: 'Alpha' })
     // Blank session: never has a title; the renderer substitutes "New Session".
     // Blank rows are only visible when current, so blank must be the selected session.
     const blank = session('blank', 3, { displayTitle: 'Alpha', blank: true })
-    const result = deriveRecent(list([cold, warm, blank], sid('blank')), workspaces, [], NO_PENDING, 20)
+    const result = deriveRecent(list([cold, warm, blank, blankTitle], sid('blank')), workspaces, [], NO_PENDING, 20)
     const coldRow = result.find(row => row.id === sid('cold'))
     const warmRow = result.find(row => row.id === sid('warm'))
+    const spacesRow = result.find(row => row.id === sid('spaces'))
     const blankRow = result.find(row => row.id === sid('blank'))
-    expect(coldRow?.title).toBe('Alpha') // displayTitle: cwd basename fallback, stable across restarts
+    expect(coldRow?.title).toBe('') // no durable title → renderer shows "Untitled"
     expect(warmRow?.title).toBe('Fix the parser bug') // real title when host cache has it
-    expect(blankRow?.title).toBe('New Session') // blank always shows the placeholder
+    expect(spacesRow?.title).toBe('') // whitespace title treated as untitled
+    expect(blankRow?.title).toBe('') // blank always renders the localized placeholder
   })
 })
 

@@ -32,6 +32,8 @@ describe('plugin shape', () => {
     const injectCallbacks: Array<(scoped: unknown) => unknown> = []
     const ctx = {
       events: { on: () => () => {} },
+      get: (_key: string) => undefined,
+      logger: { warn: () => {}, error: () => {}, info: () => {}, debug: () => {} },
       inject: (_deps: string[], callback: (scoped: unknown) => unknown) => {
         injectCallbacks.push(callback)
         return {}

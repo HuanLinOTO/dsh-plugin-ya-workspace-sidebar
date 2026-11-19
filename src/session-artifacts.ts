@@ -2,7 +2,7 @@
  * Locate a session's jsonl storage directory and newest log file.
  *
  * The official jsonl backend lays sessions out as
- * `<root>/<projectKey(cwd)>/<encodeSegment(id)>/vN.jsonl(.zstd)`. This module
+ * `<root>/<projectKey(cwd)>/<encodeSegment(id)>/session.vN.jsonl(.zstd)`. This module
  * mirrors only {@link encodeSegment} (id → one safe path segment) and SCANS
  * the project directories instead of reimplementing `projectKey` (its lossy
  * slug rules are the fragile half); a session with several historical project
@@ -43,13 +43,13 @@ export function encodeSegment(raw: string): string {
 /**
  * Parse one committed generation filename into its format version.
  * @param filename - candidate entry from a session directory.
- * @returns the generation version (`vN.jsonl` / `vN.jsonl.zstd`; version-zero
- *   is the suffix-only `.jsonl`), or undefined for non-generation names.
+ * @returns the generation version (`session.vN.jsonl` / `session.vN.jsonl.zstd`;
+ *   version-zero is `session.jsonl`), or undefined for non-generation names.
  */
 function logGeneration(filename: string): number | undefined {
-  const match = /^v(\d+)\.jsonl(\.zstd)?$/.exec(filename)
+  const match = /^session\.v(\d+)\.jsonl(\.zstd)?$/.exec(filename)
   if (match !== null) return Number(match[1])
-  return filename === '.jsonl' ? 0 : undefined
+  return filename === 'session.jsonl' ? 0 : undefined
 }
 
 /**

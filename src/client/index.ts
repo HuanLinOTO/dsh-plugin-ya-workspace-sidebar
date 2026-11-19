@@ -112,6 +112,7 @@ export function apply(ctx: Context): void {
       await ctx.workspaces.insertSessionBefore(workspaceId, sessionId, beforeSessionId)
     },
     createWorkspace,
+    refreshSessionProjections: sessionId => ctx.sessions.refreshProjections(sessionId),
     resolveSessionPaths: async input => {
       try {
         const response = await fetch('/ya-workspace-sidebar/paths', {

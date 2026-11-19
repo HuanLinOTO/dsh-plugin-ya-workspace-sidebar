@@ -92,7 +92,11 @@ function rowOf(
   const pendingInteraction = pendingKindOf(pending, summary.id)
   return {
     id: summary.id,
-    title: summary.blank ? 'New Session' : summary.displayTitle,
+    // Row title is the durable title only: displayTitle falls back to the
+    // cwd basename for cold sessions, which renders every untitled row as the
+    // workspace folder name. The renderer substitutes the localized
+    // newSession/untitled labels for the empty title.
+    title: summary.blank ? '' : (summary.title?.trim() ?? ''),
     blank: summary.blank,
     running: summary.running,
     ...(pendingInteraction === undefined ? {} : { pendingInteraction }),

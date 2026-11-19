@@ -5,6 +5,7 @@ export declare const zh: {
     recent: string;
     ungrouped: string;
     newSession: string;
+    untitled: string;
     addWorkspace: string;
     addWorkspaceMenu: string;
     search: string;
@@ -71,6 +72,7 @@ export declare const en: {
     recent: string;
     ungrouped: string;
     newSession: string;
+    untitled: string;
     addWorkspace: string;
     addWorkspaceMenu: string;
     search: string;

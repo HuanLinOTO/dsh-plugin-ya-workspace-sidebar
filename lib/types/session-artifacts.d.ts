@@ -2,7 +2,7 @@
  * Locate a session's jsonl storage directory and newest log file.
  *
  * The official jsonl backend lays sessions out as
- * `<root>/<projectKey(cwd)>/<encodeSegment(id)>/vN.jsonl(.zstd)`. This module
+ * `<root>/<projectKey(cwd)>/<encodeSegment(id)>/session.vN.jsonl(.zstd)`. This module
  * mirrors only {@link encodeSegment} (id → one safe path segment) and SCANS
  * the project directories instead of reimplementing `projectKey` (its lossy
  * slug rules are the fragile half); a session with several historical project

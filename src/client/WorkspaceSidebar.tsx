@@ -107,7 +107,7 @@ function SessionItem({
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
   const menuOpen = menuOpenButton || menuAt !== null
   const closeMenu = (): void => { setMenuOpenButton(false); setMenuAt(null) }
-  const title = row.blank ? t('newSession') : row.title
+  const title = row.blank ? t('newSession') : (row.title === '' ? t('untitled') : row.title)
   const isDelete = actionMode === 'delete'
   const actionLabel = isDelete ? t('deleteSession') : t('archive')
   const actionIcon = isDelete ? <IconTrashOutlineRegular /> : <IconArchiveOutlineRegular size={16} />
@@ -268,7 +268,7 @@ export function WorkspaceSidebar(props: SidebarProps) {
     wide, expandSidebar, useSessions, useSessionStatus, useCurrentSession, useWorkspaces, startSession,
     open, searchSessions, searchResultLimit, renameSession, forkSession, renameWorkspace,
     deleteWorkspace, archiveSession, createWorkspace, useDirectoryFlow, renderSlot, t,
-    resolveSessionPaths, revealInExplorer,
+    resolveSessionPaths, revealInExplorer, refreshSessionProjections,
   } = props
   const sessions = useSessions(state => state)
   // dsh 0.1.7-rc.1: the selected Session moved out of SessionListState into the
@@ -304,6 +304,22 @@ export function WorkspaceSidebar(props: SidebarProps) {
     () => deriveRecent(sessionsView, workspaces, archived, pendingInteractions, Number.MAX_SAFE_INTEGER),
     [archived, pendingInteractions, sessionsView, workspaces],
   )
+  // Cold rows carry no durable title until the host folds their log. Ask the
+  // controller for the exact projection once per session per mount: the
+  // returned 'sequenced' block lands in the shared store, re-rendering the row
+  // with the real title (and, on the host, feeding the projection cache).
+  const titleRequested = useRef(new Set<SessionId>())
+  useEffect(() => {
+    for (const row of allRows) {
+      if (row.blank || row.title !== '' || titleRequested.current.has(row.id)) continue
+      titleRequested.current.add(row.id)
+      refreshSessionProjections(row.id).catch(() => {
+        // A failed read (not found, migration, offline) may retry on the next
+        // store change; refreshProjections dedupes in-flight reads itself.
+        titleRequested.current.delete(row.id)
+      })
+    }
+  }, [allRows, refreshSessionProjections])
   // Full recency list; the block virtualizes instead of capping at five rows.
   // Pinned rows lift to the front (browser-local ordering overlay).
   const recent = useMemo(
